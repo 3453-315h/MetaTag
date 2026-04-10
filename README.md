@@ -2,6 +2,10 @@
 
 **Professional-Grade Audio & Audiobook Metadata Management Suite**
 
+<p align="center">
+  <img src="img/splash.png" alt="MetaTag Splash" width="600">
+</p>
+
 MetaTag is a powerful, cross-platform audio tagging application designed for music collectors, DJs, researchers, and audiobook lovers. Built with Python and PySide6, it offers a high-performance Model/View architecture capable of handling massive libraries with zero latency.
 
 ---
