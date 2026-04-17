@@ -1,0 +1,32 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "windows-default",
+      "displayName": "Windows Default",
+      "description": "Configure with vcpkg toolchain",
+      "generator": "Visual Studio 17 2022",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": {
+          "type": "FILEPATH",
+          "value": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+        }
+      }
+    },
+    {
+      "name": "linux-default",
+      "displayName": "Linux Default",
+      "description": "Configure for Linux",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build"
+    },
+    {
+      "name": "macos-default",
+      "displayName": "macOS Default",
+      "description": "Configure for macOS",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build"
+    }
+  ]
+}
