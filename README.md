@@ -2,76 +2,63 @@
   <img src="assets/logo.png" width="128" height="128" alt="MetaTag Logo">
 </p>
 
-# MetaTag - Audio Tag Editor for Windows
+# MetaTag - Professional Audio & Audiobook Metadata Management
 
-Cross-platform audio tag editor inspired by macOS Meta (formerly MetaImage). Built with Qt/C++ and TagLib.
-
-## Features
-
-- Batch editing of tags (artist, album, genre, etc.)
-- Instant previews with no manual saving
-- Support for MP3, FLAC, WAV, AIFF, OGG, MP4, M4A, OGA, SPX
-- Track numbering and reordering
-- Find & replace with regular expressions
-- Online lookups for cover art and missing tags (Discogs, MusicBrainz)
-- Pattern-based file renaming and directory organization
-- Configurable sidebar layouts
-- Drag-and-drop cover art
-- CSV import/export
-- Library syncing with iTunes, MusicBee, etc.
-
-## Build Status
+**MetaTag** is a powerful, cross-platform audio tagging application designed for music collectors, DJs, researchers, and audiobook lovers. Built with a high-performance Model/View architecture, it offers professional-grade metadata management with zero latency, even for massive libraries.
 
 [![CI](https://github.com/3453-315h/MetaTag/workflows/CI/badge.svg)](https://github.com/3453-315h/MetaTag/actions)
 
-## Build Instructions
+---
 
-### Prerequisites
+## 🚀 Key Features
 
-- Qt 6 (Development packages)
-- TagLib C++ library
-- CMake 3.16+
-- C++17 compiler (MSVC, GCC, Clang)
+### 🎧 Audio & Audiobook Tagging
+- **Multi-Format Support**: Full support for MP3 (ID3v1/v2), FLAC, M4A/MP4 (iTunes), Ogg Vorbis, Opus, WAV, and AIFF.
+- **Specialized Audiobook Engine**: Integrated fetching for **Narrators**, **Series**, and **Book Descriptions** via the Audnexus API.
+- **Intelligent Field Mapping**: Automatically maps professional audiobook fields (e.g., Narrator to Composer, Series to Grouping).
+- **Undo/Redo System**: Full session-wide undo/redo support for all tag edits and file operations.
+- **Batch Editing**: Simultaneously update metadata across hundreds of tracks with a single click.
 
-### Windows
+### 🔍 Online Metadata & Discovery
+- **Audnexus Integration**: Specialized lookup for audiobooks including high-resolution book covers.
+- **MusicBrainz & Discogs**: Connect to official databases for automatic tracklist fetching and deep metadata searches.
+- **Adaptive Cover Art Finder**: Automatically download, resize, and embed album art during import.
 
-1. Install Qt 6 via Qt Online Installer or vcpkg.
-2. Install TagLib via vcpkg:
-   ```powershell
-   vcpkg install taglib
-   ```
-3. Configure with CMake:
-   ```bash
-   mkdir build
-   cd build
-   cmake .. -DCMAKE_TOOLCHAIN_FILE=[path to vcpkg]/scripts/buildsystems/vcpkg.cmake
-   ```
-4. Build:
-   ```bash
-   cmake --build . --config Release
-   ```
-5. (Optional) Build tests:
-   ```bash
-   cmake .. -DBUILD_TESTS=ON
-   cmake --build . --config Release
-   ctest
-   ```
-6. Run the executable `metatag-ui.exe`.
+### 🛠️ Advanced Automation
+- **Tag from Filename**: Extract metadata from complex folder/file structures using custom regex-based patterns.
+- **Batch Renaming**: Organize your physical library by renaming and moving files based on their internal metadata.
+- **Attribute Preservation**: Option to **Preserve File Modification Timestamps** during tagging operations.
 
-### macOS / Linux
+---
 
-Use your package manager to install Qt6 and TagLib, then follow similar CMake steps.
+## 🎨 User Interface
+- **Premium Dark Mode**: A sleek, high-contrast interface designed to reduce eye strain.
+- **Customizable Layout**: Toggle and reorder editor fields to suit your specific metadata workflow.
+- **Integrated Audio Player**: Preview tracks instantly without switching applications.
 
-## License
+---
 
-GPL v3. See LICENSE file.
+## 💻 Tech Stack
+- **Standard Suite (v1.3.0)**: Built with **Python 3.14+**, **PySide6 (Qt 6)**, and the **Mutagen** metadata engine.
+- **Native Implementation**: The original C++/TagLib core is available for high-performance native requirements (see `src/`).
 
-## Contributing
+## 🛠️ Usage
 
-Welcome! Please open issues and pull requests on GitHub.
+### Standalone (Windows)
+MetaTag is provided as a standalone, portable application. Simply run the `MetaTag.exe` from the latest release or use the provided installer.
 
-## Acknowledgments
+### Developer Setup (Python)
+1. Navigate to the `python/` directory.
+2. Install dependencies: `pip install -r requirements.txt`
+3. Run: `python run.py`
 
-- TagLib for audio tagging
-- Qt for cross-platform UI
-- Meta (macOS) for inspiration
+### Native Build (C++)
+Instructions for building the C++ core can be found in [docs/native_build.md](docs/native_build.md).
+
+---
+
+## 📜 License
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+*Developed by MetaTag Team — Precision Metadata for Professional Libraries.*
