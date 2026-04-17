@@ -6,7 +6,8 @@
 
 **MetaTag** is a powerful, cross-platform audio tagging application designed for music collectors, DJs, researchers, and audiobook lovers. Built with a high-performance Model/View architecture, it offers professional-grade metadata management with zero latency, even for massive libraries.
 
-[![CI](https://github.com/3453-315h/MetaTag/workflows/CI/badge.svg)](https://github.com/3453-315h/MetaTag/actions)
+[![Python CI](https://github.com/3453-315h/MetaTag/actions/workflows/python.yml/badge.svg)](https://github.com/3453-315h/MetaTag/actions/workflows/python.yml)
+[![Native CI](https://github.com/3453-315h/MetaTag/actions/workflows/ci.yml/badge.svg)](https://github.com/3453-315h/MetaTag/actions/workflows/ci.yml)
 
 ---
 

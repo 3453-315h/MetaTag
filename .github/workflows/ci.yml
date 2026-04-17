@@ -1,4 +1,4 @@
-name: CI
+name: Native CI (C++)
 
 on:
   push:
@@ -11,21 +11,26 @@ jobs:
     runs-on: windows-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Install Qt
       uses: jurplel/install-qt-action@v3
       with:
-        version: '6.5.0'
+        version: '6.5.3' # Using a slightly more specific/stable version
         modules: 'qtcore qtgui qtwidgets qtnetwork'
+        cache: true
 
-    - name: Install TagLib
+    - name: Install TagLib via vcpkg
       run: |
-        vcpkg install taglib --triplet x64-windows
-        echo "CMAKE_TOOLCHAIN_FILE=$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" >> $GITHUB_ENV
+        vcpkg install taglib:x64-windows
 
     - name: Configure CMake
-      run: cmake -B build -DBUILD_TESTS=ON
+      run: |
+        cmake -B build `
+          -DCMAKE_BUILD_TYPE=Release `
+          -DBUILD_TESTS=ON `
+          -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+      shell: pwsh
 
     - name: Build
       run: cmake --build build --config Release
