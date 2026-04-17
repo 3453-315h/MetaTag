@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.png" width="128" height="128" alt="MetaTag Logo">
+</p>
+
 # MetaTag - Audio Tag Editor for Windows
 
 Cross-platform audio tag editor inspired by macOS Meta (formerly MetaImage). Built with Qt/C++ and TagLib.
@@ -18,7 +22,7 @@ Cross-platform audio tag editor inspired by macOS Meta (formerly MetaImage). Bui
 
 ## Build Status
 
-[![CI](https://github.com/yourusername/metatag/workflows/CI/badge.svg)](https://github.com/yourusername/metatag/actions)
+[![CI](https://github.com/3453-315h/MetaTag/workflows/CI/badge.svg)](https://github.com/3453-315h/MetaTag/actions)
 
 ## Build Instructions
 
