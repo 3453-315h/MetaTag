@@ -56,5 +56,9 @@ def format_filename(tags: Dict[str, Any], pattern: str) -> str:
                 val = f"{int(val):02d}"
             except (ValueError, TypeError):
                 pass
-        result = result.replace(placeholder, str(val))
+        
+        # Sanitize the value: remove/replace characters that are invalid in filenames
+        # or that could act as path separators.
+        safe_val = re.sub(r'[\\/:*?"<>|]', '_', str(val))
+        result = result.replace(placeholder, safe_val)
     return result

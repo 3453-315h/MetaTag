@@ -61,11 +61,16 @@ class AudioPlayer(QWidget):
         self._seek_slider.sliderMoved.connect(self._on_seek)
         self._volume_slider.valueChanged.connect(self._on_volume_changed)
 
-    def load_track(self, file_path: Path) -> None:
+    def load_track(self, file_path: Optional[Path]) -> None:
         """Load a new file into the player and stop current playback."""
         self._player.stop()
-        self._player.setSource(QUrl.fromLocalFile(str(file_path)))
-        self._seek_slider.setEnabled(True)
+        if file_path:
+            self._player.setSource(QUrl.fromLocalFile(str(file_path)))
+            self._seek_slider.setEnabled(True)
+        else:
+            self._player.setSource(QUrl())
+            self._seek_slider.setEnabled(False)
+            self._time_label.setText("0:00 / 0:00")
 
     def toggle_playback(self) -> None:
         if self._player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:

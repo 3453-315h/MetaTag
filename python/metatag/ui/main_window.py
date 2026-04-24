@@ -1326,27 +1326,61 @@ class MainWindow(QMainWindow):
         dialog = BatchRenameDialog(self, tracks)
 
         if dialog.exec():
+            # Release file locks by clearing the player source
+            self._audio_player.load_track(None)
+            
             pattern = dialog.pattern()
             success = 0
-            for idx in [self._proxy_model.mapToSource(i).row() for i in indexes]:
+            errors = []
+            
+            # Map proxy indices to source row indices
+            source_rows = [self._proxy_model.mapToSource(idx).row() for idx in indexes]
+            
+            for idx in source_rows:
                 track = self._tracks[idx]
                 tags = {
                     "artist": track.artist, "album": track.album, "title": track.title,
                     "track_number": track.track_number, "disc_number": track.disc_number,
                     "year": track.year,
                 }
-                new_name = format_filename(tags, pattern) + track.file_path.suffix
+                
+                # format_filename is now sanitized in patterns.py
+                new_base = format_filename(tags, pattern).strip()
+                if not new_base or new_base == ".":
+                    # Fallback to avoid empty names or just dots
+                    new_base = f"Track {track.track_number if track.track_number > 0 else idx}"
+                    
+                new_name = new_base + track.file_path.suffix
                 new_path = track.file_path.parent / new_name
+                
+                # If name is unchanged, count as success and skip
+                if new_path == track.file_path:
+                    success += 1
+                    continue
+                    
                 try:
+                    # On Windows, rename fails if destination exists
+                    if new_path.exists():
+                        raise FileExistsError(f"Destination already exists: {new_name}")
+                        
                     track.file_path.rename(new_path)
-                    # FIX #5: file_path is a read-only property; use update_path()
                     track.update_path(new_path)
                     self._track_model.update_row(idx)
                     success += 1
                 except Exception as e:
-                    print(f"Failed to rename {track.file_path}: {e}")
+                    errors.append(f"{track.file_path.name} -> {new_name}: {str(e)}")
+
+            if errors:
+                error_summary = "\n".join(errors[:10])
+                if len(errors) > 10:
+                    error_summary += f"\n...and {len(errors) - 10} more."
+                QMessageBox.warning(self, "Rename Errors", f"Failed to rename {len(errors)} file(s):\n\n{error_summary}")
 
             self.statusBar().showMessage(f"Renamed {success} of {len(tracks)} tracks", 5000)
+            
+            # Reload current track if it was part of the operation
+            if 0 <= self._current_index < len(self._tracks):
+                self._load_track(self._current_index)
 
     @Slot()
     def _regex_find_replace(self) -> None:
