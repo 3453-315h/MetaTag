@@ -19,7 +19,7 @@ class AudiobookLookup(QObject):
     def __init__(self, parent: QObject = None):
         super().__init__(parent)
         self._nam = QNetworkAccessManager(self)
-        self._base_url = "https://api.audnex.us/v1"
+        self._base_url = "https://api.audnex.us"
 
     def search_books(self, query: str) -> None:
         """Search for audiobooks by title or author."""
@@ -30,9 +30,10 @@ class AudiobookLookup(QObject):
         # Sanitize query: replace newlines, tabs, and multiple spaces with a single space
         clean_query = " ".join(query.split()).strip()
 
-        url = QUrl(f"{self._base_url}/search")
+        # The current Audnex API uses /authors?name=... for general search
+        url = QUrl(f"{self._base_url}/authors")
         q_params = QUrlQuery()
-        q_params.addQueryItem("q", clean_query)
+        q_params.addQueryItem("name", clean_query)
         url.setQuery(q_params)
 
         request = QNetworkRequest(url)
@@ -59,18 +60,18 @@ class AudiobookLookup(QObject):
                 return
 
             data = json.loads(reply.readAll().data())
-            # Audnex usually returns a list or a dict with a results key
+            # Audnex search results are usually a direct list of items
             results = data if isinstance(data, list) else data.get("results", [])
             
             processed = []
             for item in results:
                 processed.append({
                     "id": item.get("asin"),
-                    "title": item.get("title", "Unknown"),
+                    "title": item.get("name", item.get("title", "Unknown")),
                     "artist": item.get("author", "Unknown"),
                     "narrator": item.get("narrator", ""),
                     "series": item.get("series", ""),
-                    "year": item.get("releaseDate", "")[:4],
+                    "year": str(item.get("releaseDate", ""))[:4],
                 })
             
             self.results_fetched.emit(processed)
