@@ -153,6 +153,13 @@ class Settings:
     def set_filename_tag_pattern(self, pattern: str) -> None:
         self._settings.setValue("core/filename_tag_pattern", pattern.strip())
 
+    def rename_pattern(self) -> str:
+        val = self._settings.value("core/rename_pattern")
+        return str(val) if val else "%track% - %title%"
+
+    def set_rename_pattern(self, pattern: str) -> None:
+        self._settings.setValue("core/rename_pattern", pattern.strip())
+
     # ── Online ────────────────────────────────────────────────────────────
 
     def discogs_token(self) -> str:

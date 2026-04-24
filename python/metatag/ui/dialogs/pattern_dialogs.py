@@ -71,14 +71,21 @@ class PatternDialogBase(QDialog):
     def pattern(self) -> str:
         return self._pattern_edit.text().strip()
 
+    def set_pattern(self, pattern: str) -> None:
+        self._pattern_edit.setText(pattern)
+        self._on_pattern_changed(pattern)
+
 
 class TagFromFilenameDialog(PatternDialogBase):
     """Dialog for extracting tags from file names."""
     
-    def __init__(self, parent=None, tracks: List[Any] = None):
-        super().__init__(parent, "Tag from Filename", "%artist% - %title%")
+    def __init__(self, parent=None, tracks: List[Any] = None, default_pattern: str = ""):
+        super().__init__(parent, "Tag from Filename", default_pattern or "%artist% - %title%")
         self._tracks = tracks or []
-        self._update_preview()
+        if default_pattern:
+            self.set_pattern(default_pattern)
+        else:
+            self._update_preview()
         
     def _on_pattern_changed(self, text: str) -> None:
         self._update_preview()
@@ -111,10 +118,13 @@ class TagFromFilenameDialog(PatternDialogBase):
 class BatchRenameDialog(PatternDialogBase):
     """Dialog for renaming files based on tags."""
     
-    def __init__(self, parent=None, tracks: List[Any] = None):
-        super().__init__(parent, "Batch Rename from Tags", "%track% - %title%")
+    def __init__(self, parent=None, tracks: List[Any] = None, default_pattern: str = ""):
+        super().__init__(parent, "Batch Rename from Tags", default_pattern or "%track% - %title%")
         self._tracks = tracks or []
-        self._update_preview()
+        if default_pattern:
+            self.set_pattern(default_pattern)
+        else:
+            self._update_preview()
 
     def _on_pattern_changed(self, text: str) -> None:
         self._update_preview()

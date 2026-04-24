@@ -39,7 +39,7 @@ def pattern_to_regex(pattern: str) -> str:
 def parse_filename(filename: str, pattern: str) -> Dict[str, str]:
     """Extract metadata from a filename using a pattern."""
     regex_str = pattern_to_regex(pattern)
-    match = re.search(regex_str, filename)
+    match = re.search(regex_str, filename, re.IGNORECASE)
     if not match:
         return {}
     

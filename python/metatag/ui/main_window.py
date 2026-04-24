@@ -1323,13 +1323,14 @@ class MainWindow(QMainWindow):
             return
 
         tracks = [self._tracks[self._proxy_model.mapToSource(idx).row()] for idx in indexes]
-        dialog = BatchRenameDialog(self, tracks)
+        dialog = BatchRenameDialog(self, tracks, self._settings.rename_pattern())
 
         if dialog.exec():
             # Release file locks by clearing the player source
             self._audio_player.load_track(None)
             
             pattern = dialog.pattern()
+            self._settings.set_rename_pattern(pattern)
             success = 0
             errors = []
             
@@ -1547,8 +1548,7 @@ class MainWindow(QMainWindow):
             return
 
         tracks = [self._tracks[self._proxy_model.mapToSource(idx).row()] for idx in indexes]
-        dialog = TagFromFilenameDialog(self, tracks)
-        dialog._pattern_edit.setText(self._settings.filename_tag_pattern())
+        dialog = TagFromFilenameDialog(self, tracks, self._settings.filename_tag_pattern())
         
         if dialog.exec():
             pattern = dialog.pattern()
