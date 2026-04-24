@@ -32,7 +32,7 @@ from PySide6.QtWidgets import (
     QSplashScreen,
     QTableView,
 )
-from PySide6.QtCore import Qt, Signal, Slot, QTimer, QPoint, QSortFilterProxyModel, QUrl
+from PySide6.QtCore import Qt, Signal, Slot, QTimer, QPoint, QSortFilterProxyModel, QUrl, QMimeData
 from PySide6.QtGui import (
     QAction,
     QPixmap,
@@ -44,7 +44,6 @@ from PySide6.QtGui import (
     QShortcut,
     QUndoStack,
     QDrag,
-    QMimeData,
 )
 from PIL import Image
 import io
