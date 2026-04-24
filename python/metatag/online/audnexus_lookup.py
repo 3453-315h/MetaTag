@@ -92,7 +92,7 @@ class AudiobookLookup(QObject):
             reply.deleteLater()
 
     def _handle_details_reply(self, reply: QNetworkReply) -> None:
-        """Handle full book metadata JSON."""
+        """Handle full book metadata JSON from Audnexus."""
         try:
             if reply.error() != QNetworkReply.NetworkError.NoError:
                 self.lookup_error.emit(f"Fetch failed: {reply.errorString()}")
@@ -100,17 +100,36 @@ class AudiobookLookup(QObject):
 
             data = json.loads(reply.readAll().data())
             
+            # Authors and narrators are now arrays of objects
+            authors = data.get("authors", [])
+            if authors and isinstance(authors, list):
+                author_name = ", ".join([a.get("name") for a in authors if isinstance(a, dict) and a.get("name")])
+            else:
+                author_name = data.get("author", "Unknown")
+
+            narrators = data.get("narrators", [])
+            if narrators and isinstance(narrators, list):
+                narrator_name = ", ".join([n.get("name") for n in narrators if isinstance(n, dict) and n.get("name")])
+            else:
+                narrator_name = data.get("narrator", "")
+
+            # Series info is often in seriesPrimary
+            series_info = data.get("seriesPrimary") or data.get("series", {})
+            if isinstance(series_info, dict):
+                series_name = series_info.get("name", "")
+            else:
+                series_name = str(series_info) if series_info else ""
+
             # Map Audnex fields to our internal expected format
             details = {
-                "title": data.get("title"),
-                "artist": data.get("author"),
-                "narrator": data.get("narrator"),
-                "series": data.get("series"),
-                "year": data.get("releaseDate", "")[:4],
+                "title": data.get("title", "Unknown"),
+                "artist": author_name,
+                "narrator": narrator_name,
+                "series": series_name,
+                "year": str(data.get("releaseDate", ""))[:4],
                 "comment": data.get("description", ""),
                 "cover_url": data.get("image"),
-                # Handle series structure if it's nested
-                "series_name": data.get("series", {}).get("name") if isinstance(data.get("series"), dict) else data.get("series"),
+                "series_name": series_name,
             }
             
             self.details_fetched.emit(details)
