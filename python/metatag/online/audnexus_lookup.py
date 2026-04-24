@@ -19,21 +19,26 @@ class AudiobookLookup(QObject):
     def __init__(self, parent: QObject = None):
         super().__init__(parent)
         self._nam = QNetworkAccessManager(self)
-        self._base_url = "https://api.audnex.us"
+        self._audible_url = "https://api.audible.com/1.0"
+        self._audnexus_url = "https://api.audnex.us"
 
     def search_books(self, query: str) -> None:
-        """Search for audiobooks by title or author."""
+        """Search for audiobooks by title or author using the Audible API."""
         if not query:
             self.lookup_error.emit("Search query cannot be empty")
             return
 
-        # Sanitize query: replace newlines, tabs, and multiple spaces with a single space
+        # Sanitize query
         clean_query = " ".join(query.split()).strip()
 
-        # The current Audnex API uses /authors?name=... for general search
-        url = QUrl(f"{self._base_url}/authors")
+        # Use Audible API for the initial keyword search
+        url = QUrl(f"{self._audible_url}/catalog/products")
         q_params = QUrlQuery()
-        q_params.addQueryItem("name", clean_query)
+        q_params.addQueryItem("keywords", clean_query)
+        q_params.addQueryItem("num_results", "15")
+        q_params.addQueryItem("products_sort_by", "Relevance")
+        # Include authors and narrators in the search results
+        q_params.addQueryItem("response_groups", "contributors,product_attrs")
         url.setQuery(q_params)
 
         request = QNetworkRequest(url)
@@ -44,8 +49,8 @@ class AudiobookLookup(QObject):
         reply.finished.connect(lambda: self._handle_search_reply(reply))
 
     def fetch_book_details(self, asin: str) -> None:
-        """Fetch full details for an audiobook by its ASIN."""
-        url = QUrl(f"{self._base_url}/books/{asin}")
+        """Fetch full details for an audiobook by its ASIN using Audnexus."""
+        url = QUrl(f"{self._audnexus_url}/books/{asin}")
         request = QNetworkRequest(url)
         request.setRawHeader(b"User-Agent", b"MetaTag/1.0 (https://github.com/metatag)")
         
@@ -53,25 +58,31 @@ class AudiobookLookup(QObject):
         reply.finished.connect(lambda: self._handle_details_reply(reply))
 
     def _handle_search_reply(self, reply: QNetworkReply) -> None:
-        """Handle JSON search results."""
+        """Handle Audible search results."""
         try:
             if reply.error() != QNetworkReply.NetworkError.NoError:
                 self.lookup_error.emit(f"Search failed: {reply.errorString()}")
                 return
 
             data = json.loads(reply.readAll().data())
-            # Audnex search results are usually a direct list of items
-            results = data if isinstance(data, list) else data.get("results", [])
+            products = data.get("products", [])
             
             processed = []
-            for item in results:
+            for item in products:
+                # Authors and narrators are lists of objects
+                authors = item.get("authors", [])
+                author_name = authors[0].get("name", "Unknown") if authors else "Unknown"
+                
+                narrators = item.get("narrators", [])
+                narrator_name = narrators[0].get("name", "") if narrators else ""
+                
                 processed.append({
                     "id": item.get("asin"),
-                    "title": item.get("name", item.get("title", "Unknown")),
-                    "artist": item.get("author", "Unknown"),
-                    "narrator": item.get("narrator", ""),
-                    "series": item.get("series", ""),
-                    "year": str(item.get("releaseDate", ""))[:4],
+                    "title": item.get("title", "Unknown"),
+                    "artist": author_name,
+                    "narrator": narrator_name,
+                    "series": "", 
+                    "year": str(item.get("release_date", ""))[:4],
                 })
             
             self.results_fetched.emit(processed)

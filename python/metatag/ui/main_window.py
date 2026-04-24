@@ -1712,9 +1712,7 @@ class MainWindow(QMainWindow):
         if not url: return
         self.statusBar().showMessage("Downloading cover art…")
         
-        # We can reuse the logic in CoverFinder if we make a small helper, 
-        # but for now we'll do a quick internal download using NAM.
-        from PySide6.QtNetwork import QNetworkRequest, QNetworkAccessManager
+        from PySide6.QtNetwork import QNetworkRequest, QNetworkAccessManager, QNetworkReply, QSslError
         from PySide6.QtCore import QUrl
         from PySide6.QtGui import QImage
         
@@ -1723,7 +1721,6 @@ class MainWindow(QMainWindow):
         # Handle data URLs manually for better reliability
         if url.startswith("data:image/"):
             try:
-                # data:image/png;base64,iVBOR...
                 if "," in url:
                     header, data_str = url.split(",", 1)
                     import base64
@@ -1740,27 +1737,39 @@ class MainWindow(QMainWindow):
                 return
 
         request = QNetworkRequest(QUrl(url))
-        request.setRawHeader(b"User-Agent", b"MetaTag/1.0")
+        # CRITICAL: Follow redirects (browsers often provide redirecting links)
+        request.setAttribute(QNetworkRequest.Attribute.RedirectPolicyAttribute, 
+                             QNetworkRequest.RedirectPolicy.NoLessSafeRedirectPolicy)
+        # Use a browser-like User-Agent to avoid being blocked
+        request.setRawHeader(b"User-Agent", b"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
         
         reply = manager.get(request)
+        
+        def handle_ssl_errors(errors):
+            ignorable = (QSslError.SslError.SelfSignedCertificate, QSslError.SslError.SelfSignedCertificateInChain)
+            if all(e.error() in ignorable for e in errors):
+                reply.ignoreSslErrors()
+
         def handle_reply():
-            if reply.error() == 0:
+            if reply.error() == QNetworkReply.NetworkError.NoError:
                 data = reply.readAll().data()
                 qimg = QImage()
                 if qimg.loadFromData(data):
                     from ..online.cover_finder import CoverFinder
-                    # Use existing helper to convert to PIL
                     pil_img = CoverFinder().qimage_to_pil(qimg)
                     
                     if 0 <= self._current_index < len(self._tracks):
-                        # Treat downloaded URL like a dragged image
                         self._set_cover_from_image(pil_img, apply_to_all_selected=True)
+                        self.statusBar().showMessage("Cover art downloaded and applied", 3000)
+                else:
+                    self.statusBar().showMessage("Downloaded data is not a valid image", 5000)
             else:
                 self.statusBar().showMessage(f"Failed to download cover: {reply.errorString()}", 5000)
             reply.deleteLater()
             
         reply.finished.connect(handle_reply)
-        # Keep manager alive
+        reply.sslErrors.connect(handle_ssl_errors)
+        # Keep manager alive for the duration of the request
         self._temp_nam = manager 
 
     @Slot()
