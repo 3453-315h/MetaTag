@@ -27,9 +27,12 @@ class AudiobookLookup(QObject):
             self.lookup_error.emit("Search query cannot be empty")
             return
 
+        # Sanitize query: replace newlines, tabs, and multiple spaces with a single space
+        clean_query = " ".join(query.split()).strip()
+
         url = QUrl(f"{self._base_url}/search")
         q_params = QUrlQuery()
-        q_params.addQueryItem("q", query)
+        q_params.addQueryItem("q", clean_query)
         url.setQuery(q_params)
 
         request = QNetworkRequest(url)
