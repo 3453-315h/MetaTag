@@ -182,7 +182,7 @@ class CoverArtLabel(QLabel):
     def dropEvent(self, event: QDropEvent):
         mime = event.mimeData()
         
-        # 1. Check for raw image data (e.g., dragged from browser)
+        # 1. Check for raw image data (e.g., dragged from some apps)
         if mime.hasImage():
             qimage = mime.imageData()
             if qimage and not qimage.isNull():
@@ -192,7 +192,7 @@ class CoverArtLabel(QLabel):
                 event.acceptProposedAction()
                 return
 
-        # 2. Check for URLs (local files or remote HTTP links)
+        # 2. Check for URLs (this is common for browsers like Chrome)
         if mime.hasUrls():
             urls = mime.urls()
             if urls:
@@ -203,10 +203,30 @@ class CoverArtLabel(QLabel):
                         self.coverDropped.emit(path)
                         event.acceptProposedAction()
                         return
-                elif url.scheme() in ("http", "https"):
+                elif url.scheme() in ("http", "https", "data"):
                     self.urlDropped.emit(url.toString())
                     event.acceptProposedAction()
                     return
+
+        # 3. Fallback: Check for HTML (Browsers often provide this)
+        if mime.hasHtml():
+            html = mime.html()
+            # Extract src from <img src="...">
+            import re
+            match = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', html)
+            if match:
+                url_str = match.group(1)
+                self.urlDropped.emit(url_str)
+                event.acceptProposedAction()
+                return
+
+        # 4. Fallback: Check for Plain Text (if it's a URL)
+        if mime.hasText():
+            text = mime.text().strip()
+            if text.startswith(("http://", "https://", "data:image/")):
+                self.urlDropped.emit(text)
+                event.acceptProposedAction()
+                return
         
         event.acceptProposedAction()
 
@@ -1699,6 +1719,26 @@ class MainWindow(QMainWindow):
         from PySide6.QtGui import QImage
         
         manager = QNetworkAccessManager(self)
+        
+        # Handle data URLs manually for better reliability
+        if url.startswith("data:image/"):
+            try:
+                # data:image/png;base64,iVBOR...
+                if "," in url:
+                    header, data_str = url.split(",", 1)
+                    import base64
+                    decoded = base64.b64decode(data_str)
+                    qimg = QImage()
+                    if qimg.loadFromData(decoded):
+                        from ..online.cover_finder import CoverFinder
+                        pil_img = CoverFinder().qimage_to_pil(qimg)
+                        self._set_cover_from_image(pil_img, apply_to_all_selected=True)
+                        self.statusBar().showMessage("Cover art applied from data URL", 3000)
+                        return
+            except Exception as e:
+                self.statusBar().showMessage(f"Failed to process data URL: {e}", 5000)
+                return
+
         request = QNetworkRequest(QUrl(url))
         request.setRawHeader(b"User-Agent", b"MetaTag/1.0")
         
