@@ -1,6 +1,7 @@
 """Audiobook metadata lookup using the Audnexus API."""
 
 import json
+import re
 from typing import List, Dict, Any, Optional
 from PySide6.QtCore import QObject, Signal, QUrl, QUrlQuery
 from PySide6.QtNetwork import (
@@ -48,6 +49,32 @@ class AudiobookLookup(QObject):
         reply = self._nam.get(request)
         reply.finished.connect(lambda: self._handle_search_reply(reply))
 
+    def search_web_fallback(self, query: str) -> None:
+        """Fallback: Search DuckDuckGo for an Audible link and extract the ASIN."""
+        search_query = f"{query} site:audible.com"
+        url = QUrl("https://duckduckgo.com/html/")
+        q_params = QUrlQuery()
+        q_params.addQueryItem("q", search_query)
+        url.setQuery(q_params)
+
+        request = QNetworkRequest(url)
+        request.setRawHeader(b"User-Agent", b"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+        
+        reply = self._nam.get(request)
+        reply.finished.connect(lambda: self._handle_web_fallback_reply(reply))
+
+    def extract_asin(self, text: str) -> Optional[str]:
+        """Extract ASIN (B0...) from an Audible URL or raw string."""
+        # Standard Audible ASINs start with B0 and are 10 chars long
+        match = re.search(r'/(?:pd|asin|product)/.*?/([B0][A-Z0-9]{9})', text, re.IGNORECASE)
+        if match:
+            return match.group(1).upper()
+        # Fallback for just the ASIN
+        match = re.search(r'\b([B0][A-Z0-9]{9})\b', text, re.IGNORECASE)
+        if match:
+            return match.group(1).upper()
+        return None
+
     def fetch_book_details(self, asin: str) -> None:
         """Fetch full details for an audiobook by its ASIN using Audnexus."""
         url = QUrl(f"{self._audnexus_url}/books/{asin}")
@@ -88,6 +115,48 @@ class AudiobookLookup(QObject):
             self.results_fetched.emit(processed)
         except Exception as e:
             self.lookup_error.emit(f"Parse error: {e}")
+        finally:
+            reply.deleteLater()
+
+    def _handle_web_fallback_reply(self, reply: QNetworkReply) -> None:
+        """Parse DuckDuckGo HTML for Audible links."""
+        try:
+            if reply.error() != QNetworkReply.NetworkError.NoError:
+                self.lookup_error.emit(f"Web search failed: {reply.errorString()}")
+                return
+
+            html = reply.readAll().data().decode("utf-8", errors="ignore")
+            # Look for audible.com/pd/ or audible.com/asin/ links
+            links = re.findall(r'audible\.com/pd/[^"\'>\s]+', html)
+            
+            asins = []
+            seen = set()
+            for link in links:
+                asin = self.extract_asin(link)
+                if asin and asin not in seen:
+                    asins.append(asin)
+                    seen.add(asin)
+            
+            if not asins:
+                self.results_fetched.emit([])
+                return
+                
+            # For each ASIN found, we should ideally fetch its basic info to show in the list.
+            # But for simplicity, we'll just emit them as "Web Result [ASIN]"
+            results = []
+            for asin in asins[:5]: # limit to top 5
+                results.append({
+                    "id": asin,
+                    "title": f"Web Result: {asin}",
+                    "artist": "Select to load details",
+                    "narrator": "",
+                    "series": "",
+                    "year": "",
+                })
+            self.results_fetched.emit(results)
+
+        except Exception as e:
+            self.lookup_error.emit(f"Web parse error: {e}")
         finally:
             reply.deleteLater()
 

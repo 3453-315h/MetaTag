@@ -48,9 +48,13 @@ class AudiobookLookupDialog(QDialog):
         self._search_edit.returnPressed.connect(self._do_search)
         self._search_button = QPushButton("Search")
         self._search_button.clicked.connect(self._do_search)
+        self._web_search_button = QPushButton("Search via Web")
+        self._web_search_button.clicked.connect(self._do_web_search)
+        self._web_search_button.setToolTip("If the direct search fails, try finding the book on the web.")
         
         search_layout.addWidget(self._search_edit)
         search_layout.addWidget(self._search_button)
+        search_layout.addWidget(self._web_search_button)
         layout.addLayout(search_layout)
         
         # Results table
@@ -90,7 +94,23 @@ class AudiobookLookupDialog(QDialog):
             
         self._set_loading(True)
         self._table.setRowCount(0)
+        
+        # Smart detection: Is it a URL or raw ASIN?
+        asin = self._lookup.extract_asin(query)
+        if asin and (len(query) < 15 or "audible." in query.lower()):
+            self._lookup.fetch_book_details(asin)
+            return
+
         self._lookup.search_books(query)
+
+    @Slot()
+    def _do_web_search(self) -> None:
+        query = self._search_edit.text().strip()
+        if not query:
+            return
+        self._set_loading(True)
+        self._table.setRowCount(0)
+        self._lookup.search_web_fallback(query)
 
     def _set_loading(self, loading: bool) -> None:
         self._progress.setVisible(loading)
@@ -114,7 +134,10 @@ class AudiobookLookupDialog(QDialog):
             self._table.selectRow(0)
             self._ok_button.setEnabled(True)
         else:
-            QMessageBox.information(self, "No Results", "No matching audiobooks found.")
+            msg = "No matching audiobooks found via API."
+            if not self._web_search_button.isHidden():
+                msg += "\n\nTry using 'Search via Web' for better results."
+            QMessageBox.information(self, "No Results", msg)
 
     def _fetch_and_accept(self) -> None:
         row = self._table.currentRow()
