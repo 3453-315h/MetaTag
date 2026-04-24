@@ -56,7 +56,7 @@ Section "MetaTag"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\MetaTag" \
                    "Publisher" "MetaTag"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\MetaTag" \
-                   "DisplayVersion" "1.3.0"
+                   "DisplayVersion" "1.3.1"
   WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\MetaTag" \
                      "NoModify" 1
   WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\MetaTag" \

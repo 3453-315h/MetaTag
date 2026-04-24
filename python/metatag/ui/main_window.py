@@ -1,5 +1,8 @@
 """Main window for meta — audio tag editor."""
 
+import os
+import re
+import tempfile
 import sys
 import time
 from pathlib import Path
@@ -29,7 +32,7 @@ from PySide6.QtWidgets import (
     QSplashScreen,
     QTableView,
 )
-from PySide6.QtCore import Qt, Signal, Slot, QTimer, QPoint, QSortFilterProxyModel
+from PySide6.QtCore import Qt, Signal, Slot, QTimer, QPoint, QSortFilterProxyModel, QUrl
 from PySide6.QtGui import (
     QAction,
     QPixmap,
@@ -40,12 +43,14 @@ from PySide6.QtGui import (
     QKeySequence,
     QShortcut,
     QUndoStack,
+    QDrag,
+    QMimeData,
 )
 from PIL import Image
 import io
 
 PROJECT_NAME = "MetaTag"
-VERSION = "1.3.0"
+VERSION = "1.3.1"
 SUBTITLE = "Metadata Editor"
 
 from .widgets.audio_player import AudioPlayer
@@ -80,6 +85,8 @@ class CoverArtLabel(QLabel):
     """300×300 label that displays cover art and accepts image drag-and-drop."""
 
     coverDropped = Signal(str)  # emits local file path
+    imageDropped = Signal(object) # emits PIL.Image
+    urlDropped = Signal(str) # emits web URL
 
     _COVER_SIZE = 300
 
@@ -89,12 +96,74 @@ class CoverArtLabel(QLabel):
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._show_placeholder()
         self.setAcceptDrops(True)
+        
+        # Support pasting images from clipboard
+        self._paste_shortcut = QShortcut(QKeySequence.StandardKey.Paste, self)
+        self._paste_shortcut.activated.connect(self._handle_paste)
+
+        self._current_image: Optional[Image.Image] = None
+        self._album_name: str = "cover"
+        self._drag_start_pos: Optional[QPoint] = None
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._drag_start_pos = event.pos()
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if not (event.buttons() & Qt.MouseButton.LeftButton):
+            return
+        if self._drag_start_pos is None:
+            return
+        if (event.pos() - self._drag_start_pos).manhattanLength() < QApplication.startDragDistance():
+            return
+            
+        self._start_drag()
+
+    def _start_drag(self):
+        if self._current_image is None:
+            return
+            
+        # Sanitize album name for filename
+        safe_name = re.sub(r'[\\/:*?"<>|]', '_', self._album_name)
+        if not safe_name:
+            safe_name = "cover"
+            
+        temp_dir = tempfile.gettempdir()
+        temp_path = os.path.join(temp_dir, f"{safe_name}.png")
+        
+        try:
+            self._current_image.save(temp_path, "PNG")
+        except Exception:
+            return
+            
+        mime_data = QMimeData()
+        mime_data.setUrls([QUrl.fromLocalFile(temp_path)])
+        
+        drag = QDrag(self)
+        drag.setMimeData(mime_data)
+        
+        if self.pixmap():
+            drag.setPixmap(self.pixmap().scaled(100, 100, Qt.AspectRatioMode.KeepAspectRatio))
+            drag.setHotSpot(QPoint(50, 50))
+            
+        drag.exec(Qt.DropAction.CopyAction)
+
+    def _handle_paste(self):
+        clipboard = QApplication.clipboard()
+        mime = clipboard.mimeData()
+        if mime.hasImage():
+            qimage = clipboard.image()
+            if not qimage.isNull():
+                from ..online.cover_finder import CoverFinder
+                pil_image = CoverFinder().qimage_to_pil(qimage)
+                self.imageDropped.emit(pil_image)
 
     # ---- placeholder ----
 
     def _show_placeholder(self) -> None:
         self.clear()
-        self.setText("No Cover Art")
+        self.setText("No Cover Art\n\n(Drag & Drop or Paste)")
         self.setStyleSheet(
             "QLabel {"
             "  border: 2px dashed #888;"
@@ -107,21 +176,47 @@ class CoverArtLabel(QLabel):
     # ---- drag-and-drop ----
 
     def dragEnterEvent(self, event: QDragEnterEvent):
-        if event.mimeData().hasUrls():
+        mime = event.mimeData()
+        if mime.hasImage() or mime.hasUrls():
             event.acceptProposedAction()
 
     def dropEvent(self, event: QDropEvent):
-        urls = event.mimeData().urls()
-        if urls:
-            path = urls[0].toLocalFile()
-            if path.lower().endswith((".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp")):
-                self.coverDropped.emit(path)
+        mime = event.mimeData()
+        
+        # 1. Check for raw image data (e.g., dragged from browser)
+        if mime.hasImage():
+            qimage = mime.imageData()
+            if qimage and not qimage.isNull():
+                from ..online.cover_finder import CoverFinder
+                pil_image = CoverFinder().qimage_to_pil(qimage)
+                self.imageDropped.emit(pil_image)
+                event.acceptProposedAction()
+                return
+
+        # 2. Check for URLs (local files or remote HTTP links)
+        if mime.hasUrls():
+            urls = mime.urls()
+            if urls:
+                url = urls[0]
+                if url.isLocalFile():
+                    path = url.toLocalFile()
+                    if path.lower().endswith((".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp")):
+                        self.coverDropped.emit(path)
+                        event.acceptProposedAction()
+                        return
+                elif url.scheme() in ("http", "https"):
+                    self.urlDropped.emit(url.toString())
+                    event.acceptProposedAction()
+                    return
+        
         event.acceptProposedAction()
 
     # ---- public API ----
 
-    def setCoverImage(self, image: Optional[Image.Image]) -> None:
+    def setCoverImage(self, image: Optional[Image.Image], album_name: Optional[str] = None) -> None:
         """Set cover art from a PIL Image (or None to show placeholder)."""
+        self._current_image = image
+        self._album_name = album_name or "cover"
         if image is None:
             self._show_placeholder()
             return
@@ -508,6 +603,8 @@ class MainWindow(QMainWindow):
 
         # Cover art drop
         self._cover_label.coverDropped.connect(self._cover_dropped)
+        self._cover_label.imageDropped.connect(self._cover_image_dropped)
+        self._cover_label.urlDropped.connect(self._cover_url_dropped)
 
         # Tag field edits — data-driven via lambda captures
         for field_key, _, attr_name, _ in self._FIELD_DEFS:
@@ -961,7 +1058,7 @@ class MainWindow(QMainWindow):
         self._block_all_signals(False)
 
         # Cover art
-        self._cover_label.setCoverImage(track.cover_art)
+        self._cover_label.setCoverImage(track.cover_art, track.album)
 
         dur_s = track.duration // 1000
         dur_str = f"{dur_s // 60}:{dur_s % 60:02d}" if dur_s > 0 else "?"
@@ -1099,9 +1196,23 @@ class MainWindow(QMainWindow):
         tracks so the user doesn't need to tick the checkbox first."""
         self._set_cover_from_file(path, apply_to_all_selected=True)
 
+    @Slot(object)
+    def _cover_image_dropped(self, image: Image.Image) -> None:
+        self._set_cover_from_image(image, apply_to_all_selected=True)
+
+    @Slot(str)
+    def _cover_url_dropped(self, url: str) -> None:
+        self._download_cover_url(url)
+
     def _set_cover_from_file(self, path: str, apply_to_all_selected: bool = False) -> None:
         try:
             image = Image.open(path)
+            self._set_cover_from_image(image, apply_to_all_selected)
+        except Exception as e:
+            QMessageBox.warning(self, "Load Error", f"Failed to load image: {e}")
+
+    def _set_cover_from_image(self, image: Image.Image, apply_to_all_selected: bool = False) -> None:
+        try:
             if image.mode not in ("RGB", "RGBA"):
                 image = image.convert("RGB")
 
@@ -1120,7 +1231,7 @@ class MainWindow(QMainWindow):
 
             if target_rows:
                 target_tracks = [self._tracks[r] for r in target_rows]
-                cmd = CoverChangeCommand(target_tracks, image,
+                cmd = CoverChangeCommand(self, target_tracks, image,
                                          f"Set cover art ({len(target_rows)} track(s))")
                 self._undo_stack.push(cmd)
                 self._cover_label.setCoverImage(image)
@@ -1130,19 +1241,29 @@ class MainWindow(QMainWindow):
             else:
                 self._cover_label.setCoverImage(image)
         except Exception as e:
-            QMessageBox.warning(self, "Load Error", f"Failed to load image: {e}")
+            QMessageBox.warning(self, "Load Error", f"Failed to set image: {e}")
 
     @Slot()
     def _clear_cover(self) -> None:
+        target_rows = []
         if self._apply_to_selected_check.isChecked():
             # FIX #6: map proxy rows to source rows before indexing _tracks
             for idx in self._file_list.selectionModel().selectedRows():
                 row = self._proxy_model.mapToSource(idx).row()
                 if 0 <= row < len(self._tracks):
-                    self._tracks[row].cover_art = None
+                    target_rows.append(row)
         elif 0 <= self._current_index < len(self._tracks):
-            self._tracks[self._current_index].cover_art = None
-        self._cover_label.setCoverImage(None)
+            target_rows = [self._current_index]
+
+        if target_rows:
+            target_tracks = [self._tracks[r] for r in target_rows]
+            cmd = CoverChangeCommand(self, target_tracks, None,
+                                     f"Clear cover art ({len(target_rows)} track(s))")
+            self._undo_stack.push(cmd)
+            self._cover_label.setCoverImage(None)
+            self.statusBar().showMessage(
+                f"Cover cleared from {len(target_rows)} track(s)", 3000
+            )
 
     @Slot()
     def _fetch_cover_online(self) -> None:
@@ -1183,7 +1304,7 @@ class MainWindow(QMainWindow):
             # Adaptive resizing
             track.optimize_cover(max_size=self._settings.cover_max_res())
             
-            self._cover_label.setCoverImage(track.cover_art)
+            self._cover_label.setCoverImage(track.cover_art, track.album)
             self.statusBar().showMessage("Cover art fetched and optimized successfully", 3000)
 
     def _on_cover_fetch_error(self, error_msg: str) -> None:
@@ -1379,6 +1500,8 @@ class MainWindow(QMainWindow):
             self._undo_stack.push(TagEditCommand(self, [idx], "track_number", str(mb_t.get("number"))))
             
         self._undo_stack.endMacro()
+        if 0 <= self._current_index < len(self._tracks):
+            self._load_track(self._current_index)
         self.statusBar().showMessage("Successfully applied MusicBrainz metadata")
 
     @Slot()
@@ -1406,6 +1529,8 @@ class MainWindow(QMainWindow):
                     self._undo_stack.push(TagEditCommand(self, [idx], field, value))
             
             self._undo_stack.endMacro()
+            if 0 <= self._current_index < len(self._tracks):
+                self._load_track(self._current_index)
             self.statusBar().showMessage(f"Applied pattern to {len(tracks)} tracks", 5000)
 
     # (duplicate _batch_rename removed — consolidated into the definition above)
@@ -1527,12 +1652,12 @@ class MainWindow(QMainWindow):
                 self._load_track(self._current_index)
             
             if book.get("cover_url"):
-                self._download_audiobook_cover(book["cover_url"])
+                self._download_cover_url(book["cover_url"])
 
-    def _download_audiobook_cover(self, url: str) -> None:
+    def _download_cover_url(self, url: str) -> None:
         """Helper to download and apply cover art from a URL."""
         if not url: return
-        self.statusBar().showMessage("Downloading book cover…")
+        self.statusBar().showMessage("Downloading cover art…")
         
         # We can reuse the logic in CoverFinder if we make a small helper, 
         # but for now we'll do a quick internal download using NAM.
@@ -1555,11 +1680,10 @@ class MainWindow(QMainWindow):
                     pil_img = CoverFinder().qimage_to_pil(qimg)
                     
                     if 0 <= self._current_index < len(self._tracks):
-                        track = self._tracks[self._current_index]
-                        track.cover_art = pil_img
-                        track.optimize_cover(max_size=self._settings.cover_max_res())
-                        self._cover_label.setCoverImage(track.cover_art)
-                        self.statusBar().showMessage("Audiobook cover applied and optimized", 3000)
+                        # Treat downloaded URL like a dragged image
+                        self._set_cover_from_image(pil_img, apply_to_all_selected=True)
+            else:
+                self.statusBar().showMessage(f"Failed to download cover: {reply.errorString()}", 5000)
             reply.deleteLater()
             
         reply.finished.connect(handle_reply)

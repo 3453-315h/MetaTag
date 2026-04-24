@@ -37,10 +37,10 @@ def get_version() -> str:
         if toml_path.exists():
             with toml_path.open("rb") as f:
                 data = tomllib.load(f)
-            return data["project"].get("version", "1.3.0")
+            return data["project"].get("version", "1.3.1")
     except Exception:
         pass
-    return "1.3.0"
+    return "1.3.1"
 
 
 class Settings:

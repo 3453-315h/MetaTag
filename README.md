@@ -24,6 +24,7 @@
 - **Audnexus Integration**: Specialized lookup for audiobooks including high-resolution book covers.
 - **MusicBrainz & Discogs**: Connect to official databases for automatic tracklist fetching and deep metadata searches.
 - **Adaptive Cover Art Finder**: Automatically download, resize, and embed album art during import.
+- **Drag & Drop Covers**: Drag images directly from web browsers or use your clipboard (Ctrl+V) to apply cover art instantly.
 
 ### 🛠️ Advanced Automation
 - **Tag from Filename**: Extract metadata from complex folder/file structures using custom regex-based patterns.
@@ -40,7 +41,7 @@
 ---
 
 ## 💻 Tech Stack
-- **Standard Suite (v1.3.0)**: Built with **Python 3.14+**, **PySide6 (Qt 6)**, and the **Mutagen** metadata engine.
+- **Standard Suite (v1.3.1)**: Built with **Python 3.14+**, **PySide6 (Qt 6)**, and the **Mutagen** metadata engine.
 - **Native Implementation**: The original C++/TagLib core is available for high-performance native requirements (see `src/`).
 
 ## 🛠️ Usage

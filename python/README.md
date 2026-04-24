@@ -1,4 +1,4 @@
-# MetaTag v1.3.0
+# MetaTag v1.3.1
 
 **Professional-Grade Audio & Audiobook Metadata Management Suite**
 

@@ -27,7 +27,7 @@ def _resource_path(relative: str) -> Path:
 class AboutDialog(QDialog):
     """About dialog — shows logo, version, and tech credits."""
 
-    def __init__(self, version: str = "1.3.0", parent=None):
+    def __init__(self, version: str = "1.3.1", parent=None):
         super().__init__(parent)
         self._setup_ui(version)
 
