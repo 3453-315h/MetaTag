@@ -1,0 +1,3 @@
+## 2024-05-18 - PySide6 Accessibility Enhancements
+**Learning:** In PySide6 desktop applications, accessibility is handled via Qt's built-in methods (`setAccessibleName`, `setToolTip`, `setBuddy`) rather than ARIA labels or standard HTML attributes. Using ampersands in `QLabel` text (e.g. `&Vol:`) combined with `setBuddy()` provides automatic keyboard shortcuts (e.g., `Alt+V`) and screen reader associations.
+**Action:** When working on Qt/PySide6 codebases, look for missing tooltips on icon-only buttons, missing accessible names on sliders/inputs, and missing buddy relationships on labels. Apply these Qt-specific methods to improve accessibility.
