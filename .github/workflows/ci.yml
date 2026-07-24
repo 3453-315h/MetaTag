@@ -13,8 +13,13 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Use Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: "20"
+
     - name: Install Qt
-      uses: jurplel/install-qt-action@v3
+      uses: jurplel/install-qt-action@v4
       with:
         version: '6.5.3' # Using a slightly more specific/stable version
         modules: 'qtcore qtgui qtwidgets qtnetwork'
