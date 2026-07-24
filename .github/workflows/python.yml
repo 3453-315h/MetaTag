@@ -17,8 +17,16 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Use Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: "20"
+
     - name: Set up Python
       uses: actions/setup-python@v5
+      env:
+        ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+        FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       with:
         python-version: '3.12'
         cache: 'pip'
