@@ -1,0 +1,3 @@
+## 2024-07-25 - Improve keyboard navigation and screen reader accessibility
+**Learning:** In PySide6, UI elements like `QLineEdit` and `QPushButton` benefit significantly from `setAccessibleName()` and `setToolTip()` for screen reader users and visual learners. Furthermore, pairing a `QLabel` with a `QLineEdit` using `setBuddy()` and adding an ampersand (`&`) in the label text is an effective, native way to provide quick keyboard shortcuts (like Alt+S) without requiring complex event handlers.
+**Action:** Remember to use `setBuddy()`, `setAccessibleName()`, and `setToolTip()` when implementing form controls or standalone buttons in Qt/PySide applications.
