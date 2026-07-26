@@ -50,9 +50,7 @@ class AudioPlayer(QWidget):
         layout.addWidget(self._play_button)
         layout.addWidget(self._time_label)
         layout.addWidget(self._seek_slider)
-        vol_label = QLabel("&Vol:")
-        vol_label.setBuddy(self._volume_slider)
-        layout.addWidget(vol_label)
+        layout.addWidget(QLabel("Vol:"))
         layout.addWidget(self._volume_slider)
 
     def _connect_signals(self) -> None:
