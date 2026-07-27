@@ -39,9 +39,11 @@ class RenameDialog(QDialog):
         )
 
         # Pattern entry
+        pattern_label = QLabel("Pattern:")
         self._pattern_edit = QLineEdit()
         self._pattern_edit.setPlaceholderText("%artist% - %title%")
-        layout.addWidget(QLabel("Pattern:"))
+        pattern_label.setBuddy(self._pattern_edit)
+        layout.addWidget(pattern_label)
         layout.addWidget(self._pattern_edit)
 
         # Preview label (optional)
