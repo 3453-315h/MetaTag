@@ -1,0 +1,3 @@
+## 2024-05-18 - Qt Layout Screen Reader Buddy Relationships
+**Learning:** QFormLayout automatically establishes buddy relationships between labels and inputs for screen reader compatibility, but other layouts like QHBoxLayout and QVBoxLayout require explicitly calling label.setBuddy(widget) to enable screen reader associations and keyboard shortcuts.
+**Action:** When manually building form-like structures with QHBoxLayout or QVBoxLayout, always remember to call setBuddy() and use an ampersand in the label text to assign keyboard accelerators.
