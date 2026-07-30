@@ -86,10 +86,11 @@ def test_import_library_success_mocked(temp_dir):
     audio_path.write_bytes(b"fake audio")
 
     # Build mock iTunes plist
+    from metatag.import_io.itunes_sync import path_to_itunes_url
     mock_plist = {
         "Tracks": {
             "1": {
-                "Location": f"file:///{audio_path.as_posix().replace(':', ':/')}",
+                "Location": path_to_itunes_url(audio_path),
                 "Artist": "Test Artist",
                 "Album": "Test Album",
                 "Name": "Test Title",
@@ -174,9 +175,10 @@ def test_import_library_track_load_fails(temp_dir):
     audio_path = Path(temp_dir) / "song.mp3"
     audio_path.write_bytes(b"fake")
 
+    from metatag.import_io.itunes_sync import path_to_itunes_url
     mock_plist = {
         "Tracks": {
-            "1": {"Location": f"file:///{audio_path.as_posix().replace(':', ':/')}"}
+            "1": {"Location": path_to_itunes_url(audio_path)}
         }
     }
 
@@ -203,10 +205,11 @@ def test_import_library_non_dict_track_info():
 def test_import_library_non_int_numeric_fields():
     """Test numeric fields with non-integer values."""
     audio_path = Path("/dummy/song.mp3")
+    from metatag.import_io.itunes_sync import path_to_itunes_url
     mock_plist = {
         "Tracks": {
             "1": {
-                "Location": f"file:///{audio_path.as_posix().replace(':', ':/')}",
+                "Location": path_to_itunes_url(audio_path),
                 "Track Number": "five",  # string
                 "Disc Number": 0,  # zero (should be ignored)
                 "Year": 2023.5,  # float (should be ignored)
