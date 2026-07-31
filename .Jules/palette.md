@@ -1,0 +1,3 @@
+## 2024-03-24 - Qt Keyboard Accessibility and Screen Reader Layout Associations
+**Learning:** In PySide6 (Qt), keyboard accelerators (using '&' in text) require a "buddy" widget to receive focus. While `QFormLayout.addRow()` establishes this buddy relationship automatically, other layouts like `QHBoxLayout` and `QVBoxLayout` do NOT. This breaks both `Alt+<Key>` shortcuts and screen reader label-to-input association.
+**Action:** When manually arranging labels and inputs in non-form layouts (like search bars in toolbars), ALWAYS explicitly call `label.setBuddy(input_widget)` and use '&' in the label text to provide keyboard accessibility and proper ARIA-equivalent screen reader roles.

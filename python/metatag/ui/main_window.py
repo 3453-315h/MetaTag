@@ -282,17 +282,17 @@ class MainWindow(QMainWindow):
     # Field definitions: (track_attr, label text, QLineEdit attr name, placeholder)
     # track_number / disc_number use "X/Y" format strings in the UI.
     _FIELD_DEFS = [
-        ("artist",       "Artist:",    "_artist_edit",   ""),
-        ("album",        "Album:",     "_album_edit",    ""),
-        ("title",        "Title:",     "_title_edit",    ""),
-        ("track_number", "Track #:",   "_track_edit",    "e.g. 3/12"),
-        ("disc_number",  "Disc #:",    "_disc_edit",     "e.g. 1/2"),
-        ("year",         "Year:",      "_year_edit",     ""),
-        ("genre",        "Genre:",     "_genre_edit",    ""),
-        ("bpm",          "BPM:",       "_bpm_edit",      ""),
-        ("composer",     "Composer:",  "_composer_edit", ""),
-        ("grouping",     "Grouping:",  "_grouping_edit", ""),
-        ("comment",      "Comment:",   "_comment_edit",  ""),
+        ("artist",       "&Artist:",    "_artist_edit",   ""),
+        ("album",        "A&lbum:",     "_album_edit",    ""),
+        ("title",        "&Title:",     "_title_edit",    ""),
+        ("track_number", "T&rack No:",  "_track_edit",    "X/Y"),
+        ("disc_number",  "&Disc No:",   "_disc_edit",     "X/Y"),
+        ("year",         "&Year:",      "_year_edit",     ""),
+        ("genre",        "&Genre:",     "_genre_edit",    ""),
+        ("bpm",          "&BPM:",       "_bpm_edit",      ""),
+        ("composer",     "&Composer:",  "_composer_edit", ""),
+        ("grouping",     "G&rouping:",  "_grouping_edit", ""),
+        ("comment",      "C&omment:",   "_comment_edit",  ""),
     ]
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:
@@ -368,8 +368,9 @@ class MainWindow(QMainWindow):
 
         # ── Search Bar ──────────────────────────────────────────────────────────
         search_layout = QHBoxLayout()
-        search_label = QLabel("Search:")
+        search_label = QLabel("&Search:")
         self._search_edit = QLineEdit()
+        search_label.setBuddy(self._search_edit)
         self._search_edit.setObjectName("searchBar")
         self._search_edit.setPlaceholderText("Filter tracks by artist, album, title...")
         self._search_edit.setClearButtonEnabled(True)
