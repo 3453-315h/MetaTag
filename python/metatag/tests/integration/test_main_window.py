@@ -140,7 +140,7 @@ def test_main_window_load_files(qtbot, capsys):
 
                 assert MockTrack.call_count == 2
                 assert len(window._tracks) == 2
-                assert window._file_list.rowCount() == 2
+                assert window._file_list.model().rowCount() == 2
                 assert window._current_index == 0
 
                 assert window._artist_edit.text() == "Test Artist"
@@ -175,7 +175,7 @@ def test_main_window_apply_to_selected(qtbot):
     window._tracks = mock_tracks
     # Populate file-list table
     for i in range(3):
-        window._append_table_row(i + 1, f"Track {i}")
+        window._track_model.layoutChanged.emit()
     # Select all rows
     window._file_list.selectAll()
 
@@ -306,7 +306,7 @@ def test_main_window_navigation(qtbot):
     tracks = [_make_mock_track(artist=f"Artist {i}") for i in range(3)]
     window._tracks = tracks
     for i in range(3):
-        window._append_table_row(i + 1, f"Track {i}")
+        window._track_model.layoutChanged.emit()
 
     window._file_list.selectRow(0)
     assert window._current_index == 0
@@ -340,7 +340,7 @@ def test_main_window_nav_label(qtbot):
     tracks = [_make_mock_track() for _ in range(5)]
     window._tracks = tracks
     for i in range(5):
-        window._append_table_row(i + 1, f"Track {i}")
+        window._track_model.layoutChanged.emit()
     window._file_list.selectRow(0)
 
     assert "1 / 5" in window._nav_label.text()
