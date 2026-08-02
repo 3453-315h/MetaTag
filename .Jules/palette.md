@@ -1,0 +1,3 @@
+## 2026-08-02 - PySide6 Keyboard Accessibility & Screen Reader Associations
+**Learning:** When building accessible desktop UIs in PySide6/Qt, web-based HTML/ARIA attributes are not applicable. Instead, standard Qt practices must be used: use an ampersand (`&`) in the `QLabel` text to designate keyboard shortcut keys, and explicitly call `label.setBuddy(target_widget)` (or rely on layout methods like `QFormLayout.addRow`) to establish the connection for screen readers.
+**Action:** Always check that interactive inputs have an associated buddy label and consider adding ampersand shortcuts to labels for frequently used fields.
