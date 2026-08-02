@@ -16,7 +16,7 @@ jobs:
     - name: Install Qt
       uses: jurplel/install-qt-action@v3
       with:
-        version: '6.5.3' # Using a slightly more specific/stable version
+        version: '6.5.0' # Using a slightly more specific/stable version
         modules: 'qtcore qtgui qtwidgets qtnetwork'
         cache: true
 
