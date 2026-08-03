@@ -1,0 +1,3 @@
+## 2026-08-03 - PySide6 Layout Accessibility Learning
+**Learning:** In PySide6, while `QFormLayout.addRow()` automatically establishes buddy relationships between labels and inputs, other layouts like `QHBoxLayout` or `QVBoxLayout` do not. This means elements in these layouts are not correctly associated for screen readers by default.
+**Action:** When creating layouts with paired labels and inputs (like search bars or custom forms) outside of `QFormLayout`, explicitly call `label.setBuddy(widget)` to enable screen reader associations, and use an ampersand (&) in the label text to assign keyboard accelerators (e.g., '&Search:' for Alt+S).
