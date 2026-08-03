@@ -86,10 +86,18 @@ def test_import_library_success_mocked(temp_dir):
     audio_path.write_bytes(b"fake audio")
 
     # Build mock iTunes plist
+    # Fix the mocked location to produce a valid path
+    audio_path_posix = audio_path.as_posix()
+    if audio_path_posix.startswith('/'):
+        # UNIX-like path
+        mock_loc = f"file://{audio_path_posix}"
+    else:
+        # Windows path
+        mock_loc = f"file:///{audio_path_posix.replace(':', ':/')}"
     mock_plist = {
         "Tracks": {
             "1": {
-                "Location": f"file:///{audio_path.as_posix().replace(':', ':/')}",
+                "Location": mock_loc,
                 "Artist": "Test Artist",
                 "Album": "Test Album",
                 "Name": "Test Title",
