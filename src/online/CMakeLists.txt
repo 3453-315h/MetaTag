@@ -19,4 +19,5 @@ target_link_libraries(metatag-online
     PUBLIC
         metatag-core
         Qt6::Network
+        Qt6::Gui
 )

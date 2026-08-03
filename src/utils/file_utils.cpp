@@ -3,6 +3,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QDebug>
+#include <QQueue>
 
 namespace metatag {
 
