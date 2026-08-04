@@ -86,10 +86,11 @@ def test_import_library_success_mocked(temp_dir):
     audio_path.write_bytes(b"fake audio")
 
     # Build mock iTunes plist
+    from metatag.import_io.itunes_sync import path_to_itunes_url
     mock_plist = {
         "Tracks": {
             "1": {
-                "Location": f"file:///{audio_path.as_posix().replace(':', ':/')}",
+                "Location": path_to_itunes_url(audio_path),
                 "Artist": "Test Artist",
                 "Album": "Test Album",
                 "Name": "Test Title",
