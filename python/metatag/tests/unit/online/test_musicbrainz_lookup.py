@@ -61,7 +61,11 @@ def test_handle_reply_finished_success():
 
     lookup._handle_reply_finished(mock_reply)
 
-    assert captured_ids == ["123", "456"]
+    expected_info = [
+        {"id": "123", "title": "", "artist": "", "year": "", "label": "", "country": ""},
+        {"id": "456", "title": "", "artist": "", "year": "", "label": "", "country": ""}
+    ]
+    assert captured_ids == expected_info
 
 
 def test_handle_reply_finished_no_releases():

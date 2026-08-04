@@ -89,7 +89,7 @@ def test_import_library_success_mocked(temp_dir):
     mock_plist = {
         "Tracks": {
             "1": {
-                "Location": f"file:///{audio_path.as_posix().replace(':', ':/')}",
+                "Location": f"file://{audio_path.as_posix().replace(':', ':/')}",
                 "Artist": "Test Artist",
                 "Album": "Test Album",
                 "Name": "Test Title",
