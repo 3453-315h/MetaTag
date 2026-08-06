@@ -18,7 +18,7 @@ target_include_directories(metatag-core
 target_link_libraries(metatag-core
     PUBLIC
         TagLib::TagLib
-        Qt6::Core
+        Qt6::Core Qt6::Gui
 )
 
 install(TARGETS metatag-core

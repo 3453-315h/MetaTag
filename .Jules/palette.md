@@ -1,3 +1,0 @@
-## 2024-05-24 - Accessibility and PySide6 QFormLayout
-**Learning:** In PySide6, while `QFormLayout.addRow()` sometimes establishes buddy relationships automatically, explicitly calling `QLabel.setBuddy(QWidget)` ensures robust screen reader associations. Additionally, using ampersands (`&`) in labels enables keyboard accelerators (e.g. `&Search:` creates Alt+S shortcut). Adding tooltips via `QWidget.setToolTip()` is a low-effort way to greatly improve discoverability of icon-only or generic action buttons.
-**Action:** Always verify if screen reader associations exist, explicitly call `setBuddy` when adding search or form labels, and add descriptive `setToolTip` texts for action buttons and navigation controls.
