@@ -368,7 +368,7 @@ class MainWindow(QMainWindow):
 
         # ── Search Bar ──────────────────────────────────────────────────────────
         search_layout = QHBoxLayout()
-        search_label = QLabel("Search:")
+        search_label = QLabel("&Search:")
         self._search_edit = QLineEdit()
         self._search_edit.setObjectName("searchBar")
         self._search_edit.setPlaceholderText("Filter tracks by artist, album, title...")
@@ -376,6 +376,7 @@ class MainWindow(QMainWindow):
         search_layout.addWidget(search_label)
         search_layout.addWidget(self._search_edit)
         root_layout.addLayout(search_layout)
+        search_label.setBuddy(self._search_edit)
 
         # ── File list (QTableView) ────────────────────────────────────────────
         self._file_list = QTableView()
@@ -404,11 +405,13 @@ class MainWindow(QMainWindow):
         # ── Navigation bar ────────────────────────────────────────────
         nav_layout = QHBoxLayout()
         self._prev_button = QPushButton("◀  Prev")
+        self._prev_button.setToolTip("Previous track (Left Arrow)")
         self._prev_button.setFixedWidth(90)
         self._nav_label = QLabel("0 / 0")
         self._nav_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._nav_label.setMinimumWidth(100)
         self._next_button = QPushButton("Next  ▶")
+        self._next_button.setToolTip("Next track (Right Arrow)")
         self._next_button.setFixedWidth(90)
         nav_layout.addStretch()
         nav_layout.addWidget(self._prev_button)
@@ -482,9 +485,13 @@ class MainWindow(QMainWindow):
         # ── Action buttons ────────────────────────────────────────────
         btn_layout = QHBoxLayout()
         self._open_button = QPushButton("Open Files…")
+        self._open_button.setToolTip("Open audio files (Ctrl+O)")
         self._save_button = QPushButton("Save Tags")
+        self._save_button.setToolTip("Save modified tags (Ctrl+S)")
         self._rename_button = QPushButton("Rename Files…")
+        self._rename_button.setToolTip("Batch rename files based on tags")
         self._regex_button = QPushButton("Find & Replace…")
+        self._regex_button.setToolTip("Bulk find and replace text in tags")
         for btn in (
             self._open_button, self._save_button,
             self._rename_button, self._regex_button,
