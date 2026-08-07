@@ -368,11 +368,12 @@ class MainWindow(QMainWindow):
 
         # ── Search Bar ──────────────────────────────────────────────────────────
         search_layout = QHBoxLayout()
-        search_label = QLabel("Search:")
+        search_label = QLabel("&Search:")
         self._search_edit = QLineEdit()
         self._search_edit.setObjectName("searchBar")
         self._search_edit.setPlaceholderText("Filter tracks by artist, album, title...")
         self._search_edit.setClearButtonEnabled(True)
+        search_label.setBuddy(self._search_edit)
         search_layout.addWidget(search_label)
         search_layout.addWidget(self._search_edit)
         root_layout.addLayout(search_layout)
@@ -989,18 +990,18 @@ class MainWindow(QMainWindow):
     def _get_field_display(self, track: Track, field_key: str) -> str:
         """Return the display string for a field, handling X/Y formatting."""
         if field_key == "track_number":
-            val = str(track.track_number) if track.track_number > 0 else ""
-            if track.track_total > 0:
+            val = str(track.track_number) if track.track_number and track.track_number > 0 else ""
+            if track.track_total and track.track_total > 0:
                 val = f"{track.track_number}/{track.track_total}"
             return val
         if field_key == "disc_number":
-            val = str(track.disc_number) if track.disc_number > 0 else ""
-            if track.disc_total > 0:
+            val = str(track.disc_number) if track.disc_number and track.disc_number > 0 else ""
+            if track.disc_total and track.disc_total > 0:
                 val = f"{track.disc_number}/{track.disc_total}"
             return val
         if field_key in ("year", "bpm"):
             v = getattr(track, field_key, 0)
-            return str(v) if v > 0 else ""
+            return str(v) if v and v > 0 else ""
         return str(getattr(track, field_key, ""))
 
     @Slot(str)
