@@ -54,8 +54,8 @@ def test_handle_reply_finished_success():
     # Capture emitted signal
     captured_ids = []
 
-    def capture(ids):
-        captured_ids.extend(ids)
+    def capture(releases):
+        captured_ids.extend([r["id"] for r in releases])
 
     lookup.releases_fetched.connect(capture)
 

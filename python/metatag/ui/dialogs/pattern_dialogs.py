@@ -33,8 +33,10 @@ class PatternDialogBase(QDialog):
         
         # Pattern input
         p_layout = QHBoxLayout()
-        p_layout.addWidget(QLabel("Pattern:"))
+        pattern_label = QLabel("&Pattern:")
+        p_layout.addWidget(pattern_label)
         self._pattern_edit = QLineEdit()
+        pattern_label.setBuddy(self._pattern_edit)
         self._pattern_edit.setPlaceholderText(placeholder)
         p_layout.addWidget(self._pattern_edit)
         layout.addLayout(p_layout)
