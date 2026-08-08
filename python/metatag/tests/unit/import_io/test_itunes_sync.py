@@ -86,10 +86,12 @@ def test_import_library_success_mocked(temp_dir):
     audio_path.write_bytes(b"fake audio")
 
     # Build mock iTunes plist
+    import urllib.request
+    uri = "file:" + urllib.request.pathname2url(str(audio_path))
     mock_plist = {
         "Tracks": {
             "1": {
-                "Location": f"file:///{audio_path.as_posix().replace(':', ':/')}",
+                "Location": uri,
                 "Artist": "Test Artist",
                 "Album": "Test Album",
                 "Name": "Test Title",
