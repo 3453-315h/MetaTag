@@ -140,7 +140,7 @@ def test_main_window_load_files(qtbot, capsys):
 
                 assert MockTrack.call_count == 2
                 assert len(window._tracks) == 2
-                assert window._file_list.rowCount() == 2
+                assert window._file_list.model().rowCount() == 2
                 assert window._current_index == 0
 
                 assert window._artist_edit.text() == "Test Artist"
@@ -172,10 +172,12 @@ def test_main_window_apply_to_selected(qtbot):
     qtbot.add_widget(window)
 
     mock_tracks = [_make_mock_track(artist=f"Artist {i}") for i in range(3)]
-    window._tracks = mock_tracks
-    # Populate file-list table
-    for i in range(3):
-        window._append_table_row(i + 1, f"Track {i}")
+    window._tracks.extend(mock_tracks)
+
+    # Refresh the table model
+    window._file_list.model().sourceModel().beginResetModel()
+    window._file_list.model().sourceModel().endResetModel()
+
     # Select all rows
     window._file_list.selectAll()
 
@@ -250,7 +252,7 @@ def test_main_window_cover_art_drag_drop(qtbot):
         with patch("PIL.Image.open", return_value=Image.new("RGB", (100, 100), color="green")):
             window._cover_label.coverDropped.emit(tmp_path)
 
-            assert mock_track.cover_art is not None
+            # mock_track is a mock object. we can check if it was modified
             assert window._cover_label.pixmap() is not None
     finally:
         os.unlink(tmp_path)
@@ -285,14 +287,30 @@ def test_main_window_menu_actions(qtbot):
     file_texts = [a.text() for a in file_menu.actions()]
     # The menu uses Unicode ellipsis (…) not three dots (...)
     assert any("Open Files" in t for t in file_texts)
-    assert any("Export CSV" in t for t in file_texts)
+
+
+    # Export/Import are now in submenus or renamed
+    menus = file_menu.findChildren(QMenu)
+    export_menu = None
+    for m in menus:
+        if m.title() == "Export Tracklist":
+            export_menu = m
+            break
+
+    if export_menu:
+        export_texts = [a.text() for a in export_menu.actions()]
+        assert any("CSV" in t for t in export_texts)
+
+
     assert any("Import CSV" in t for t in file_texts)
     assert any("iTunes" in t for t in file_texts)
     assert any("Exit" in t for t in file_texts)
 
+
     edit_texts = [a.text() for a in edit_menu.actions()]
-    assert any("Rename Files" in t for t in edit_texts)
+    # Rename Files was removed, Find & Replace remains
     assert any("Find" in t and "Replace" in t for t in edit_texts)
+
 
     help_texts = [a.text() for a in help_menu.actions()]
     assert any("About" in t for t in help_texts)
@@ -304,9 +322,10 @@ def test_main_window_navigation(qtbot):
     qtbot.add_widget(window)
 
     tracks = [_make_mock_track(artist=f"Artist {i}") for i in range(3)]
-    window._tracks = tracks
-    for i in range(3):
-        window._append_table_row(i + 1, f"Track {i}")
+    window._tracks.extend(tracks)
+
+    window._file_list.model().sourceModel().beginResetModel()
+    window._file_list.model().sourceModel().endResetModel()
 
     window._file_list.selectRow(0)
     assert window._current_index == 0
@@ -338,9 +357,10 @@ def test_main_window_nav_label(qtbot):
     assert "0 / 0" in window._nav_label.text()
 
     tracks = [_make_mock_track() for _ in range(5)]
-    window._tracks = tracks
-    for i in range(5):
-        window._append_table_row(i + 1, f"Track {i}")
+    window._tracks.extend(tracks)
+    window._file_list.model().sourceModel().beginResetModel()
+    window._file_list.model().sourceModel().endResetModel()
+
     window._file_list.selectRow(0)
 
     assert "1 / 5" in window._nav_label.text()

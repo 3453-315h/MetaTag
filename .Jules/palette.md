@@ -1,0 +1,3 @@
+## 2026-08-10 - Added Screen Reader and Keyboard Support to Search and Nav
+**Learning:** In PySide6, QHBoxLayout components like labels and text inputs do not automatically associate for screen readers or keyboard navigation. Users without mouse interaction struggle to jump to search or know what the prev/next buttons do.
+**Action:** Always use `label.setBuddy(input)` with ampersands (e.g. `&Search:`) in text labels to enable Alt-key shortcuts. Use `setAccessibleName()` and `setToolTip()` on unlabelled inputs and icon/short-text buttons to provide clarity to assistive technology and hover states.
