@@ -1,0 +1,10 @@
+--- src/core/CMakeLists.txt
++++ src/core/CMakeLists.txt
+@@ -17,6 +17,7 @@
+     PUBLIC
+         TagLib::TagLib
+         Qt6::Core
++        Qt6::Gui
+ )
+
+ install(TARGETS metatag-core
