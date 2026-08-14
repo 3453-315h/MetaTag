@@ -1,0 +1,4 @@
+## 2026-08-14 - Keyboard Accelerators and Screen Reader Associations in PySide6
+
+**Learning:** In PySide6, `QFormLayout.addRow()` automatically establishes buddy relationships between labels and inputs. However, for other layouts like `QHBoxLayout` or `QVBoxLayout`, you must explicitly call `label.setBuddy(widget)` to enable screen reader associations, and use an ampersand (`&`) in the label text to assign keyboard accelerators (e.g., `'&Search:'` for Alt+S).
+**Action:** Always explicitly set buddy relationships using `setBuddy()` and assign keyboard accelerators with `&` when adding labels and input widgets to non-form layouts.
