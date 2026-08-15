@@ -1,0 +1,3 @@
+## 2024-05-18 - Explicit Buddy Labels in Non-Form Layouts
+**Learning:** In PySide6, while `QFormLayout.addRow()` automatically establishes buddy relationships between labels and inputs for accessibility (screen readers) and keyboard shortcuts, other layouts like `QHBoxLayout` or `QVBoxLayout` do not. Missing these explicit links impairs accessibility.
+**Action:** When creating layouts outside of `QFormLayout`, explicitly assign an ampersand (`&`) for keyboard accelerators in labels and use `label.setBuddy(widget)` to link labels to their corresponding input widgets (e.g., search bars, volume sliders).
