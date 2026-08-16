@@ -52,16 +52,16 @@ def test_handle_reply_finished_success():
     ).encode("utf-8")
 
     # Capture emitted signal
-    captured_ids = []
+    captured_releases = []
 
-    def capture(ids):
-        captured_ids.extend(ids)
+    def capture(releases):
+        captured_releases.extend(releases)
 
     lookup.releases_fetched.connect(capture)
 
     lookup._handle_reply_finished(mock_reply)
 
-    assert captured_ids == ["123", "456"]
+    assert [r["id"] for r in captured_releases] == ["123", "456"]
 
 
 def test_handle_reply_finished_no_releases():
