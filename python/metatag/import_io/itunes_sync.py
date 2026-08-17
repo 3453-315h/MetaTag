@@ -18,7 +18,7 @@ def itunes_url_to_path(url: str) -> Path:
     if parsed.scheme != "file":
         raise ValueError(f"Not a file URL: {url}")
 
-    if parsed.netloc:
+    if parsed.netloc and parsed.netloc.lower() != "localhost":
         path = f"//{parsed.netloc}{parsed.path}"
     else:
         path = parsed.path
