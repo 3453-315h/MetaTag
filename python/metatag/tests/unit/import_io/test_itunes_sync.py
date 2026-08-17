@@ -89,7 +89,7 @@ def test_import_library_success_mocked(temp_dir):
     mock_plist = {
         "Tracks": {
             "1": {
-                "Location": f"file:///{audio_path.as_posix().replace(':', ':/')}",
+                "Location": f"file://{audio_path.as_posix().replace(':', ':/')}",
                 "Artist": "Test Artist",
                 "Album": "Test Album",
                 "Name": "Test Title",
@@ -176,7 +176,7 @@ def test_import_library_track_load_fails(temp_dir):
 
     mock_plist = {
         "Tracks": {
-            "1": {"Location": f"file:///{audio_path.as_posix().replace(':', ':/')}"}
+            "1": {"Location": f"file://{audio_path.as_posix().replace(':', ':/')}"}
         }
     }
 
@@ -206,7 +206,7 @@ def test_import_library_non_int_numeric_fields():
     mock_plist = {
         "Tracks": {
             "1": {
-                "Location": f"file:///{audio_path.as_posix().replace(':', ':/')}",
+                "Location": f"file://{audio_path.as_posix().replace(':', ':/')}",
                 "Track Number": "five",  # string
                 "Disc Number": 0,  # zero (should be ignored)
                 "Year": 2023.5,  # float (should be ignored)
