@@ -1,0 +1,3 @@
+## 2024-05-18 - QFormLayout vs Explicit Layout Accessibility
+**Learning:** While `QFormLayout` automatically creates buddy relationships (accessible keyboard shortcuts and screen reader associations) between labels and inputs via `addRow()`, standard layouts like `QHBoxLayout` do not. This leads to missing accessibility associations in complex interfaces that mix layout types.
+**Action:** When using layouts other than `QFormLayout` (e.g., `QHBoxLayout`, `QVBoxLayout`), always explicitly assign an accelerator key with an ampersand in the text (e.g., `&Search:`) and use `label.setBuddy(input_widget)` to ensure screen readers and keyboard users can properly interact with the field.
