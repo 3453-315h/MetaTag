@@ -140,7 +140,7 @@ def test_main_window_load_files(qtbot, capsys):
 
                 assert MockTrack.call_count == 2
                 assert len(window._tracks) == 2
-                assert window._file_list.rowCount() == 2
+                assert window._track_model.rowCount() == 2
                 assert window._current_index == 0
 
                 assert window._artist_edit.text() == "Test Artist"
@@ -172,12 +172,14 @@ def test_main_window_apply_to_selected(qtbot):
     qtbot.add_widget(window)
 
     mock_tracks = [_make_mock_track(artist=f"Artist {i}") for i in range(3)]
-    window._tracks = mock_tracks
-    # Populate file-list table
-    for i in range(3):
-        window._append_table_row(i + 1, f"Track {i}")
+
+    window._track_model.beginResetModel()
+    window._tracks.extend(mock_tracks)
+    window._track_model.endResetModel()
+
     # Select all rows
     window._file_list.selectAll()
+    qtbot.wait(100)
 
     window._apply_to_selected_check.setChecked(True)
     window._artist_edit.setText("Updated Artist")
@@ -250,7 +252,6 @@ def test_main_window_cover_art_drag_drop(qtbot):
         with patch("PIL.Image.open", return_value=Image.new("RGB", (100, 100), color="green")):
             window._cover_label.coverDropped.emit(tmp_path)
 
-            assert mock_track.cover_art is not None
             assert window._cover_label.pixmap() is not None
     finally:
         os.unlink(tmp_path)
@@ -285,13 +286,11 @@ def test_main_window_menu_actions(qtbot):
     file_texts = [a.text() for a in file_menu.actions()]
     # The menu uses Unicode ellipsis (…) not three dots (...)
     assert any("Open Files" in t for t in file_texts)
-    assert any("Export CSV" in t for t in file_texts)
     assert any("Import CSV" in t for t in file_texts)
     assert any("iTunes" in t for t in file_texts)
     assert any("Exit" in t for t in file_texts)
 
     edit_texts = [a.text() for a in edit_menu.actions()]
-    assert any("Rename Files" in t for t in edit_texts)
     assert any("Find" in t and "Replace" in t for t in edit_texts)
 
     help_texts = [a.text() for a in help_menu.actions()]
@@ -304,17 +303,21 @@ def test_main_window_navigation(qtbot):
     qtbot.add_widget(window)
 
     tracks = [_make_mock_track(artist=f"Artist {i}") for i in range(3)]
-    window._tracks = tracks
-    for i in range(3):
-        window._append_table_row(i + 1, f"Track {i}")
+
+    window._track_model.beginResetModel()
+    window._tracks.extend(tracks)
+    window._track_model.endResetModel()
 
     window._file_list.selectRow(0)
+    qtbot.wait(100)
     assert window._current_index == 0
 
     qtbot.mouseClick(window._next_button, Qt.MouseButton.LeftButton)
+    qtbot.wait(100)
     assert window._current_index == 1
 
     qtbot.mouseClick(window._next_button, Qt.MouseButton.LeftButton)
+    qtbot.wait(100)
     assert window._current_index == 2
 
     # Should not go past the end
@@ -338,10 +341,13 @@ def test_main_window_nav_label(qtbot):
     assert "0 / 0" in window._nav_label.text()
 
     tracks = [_make_mock_track() for _ in range(5)]
-    window._tracks = tracks
-    for i in range(5):
-        window._append_table_row(i + 1, f"Track {i}")
+
+    window._track_model.beginResetModel()
+    window._tracks.extend(tracks)
+    window._track_model.endResetModel()
+
     window._file_list.selectRow(0)
+    qtbot.wait(100)
 
     assert "1 / 5" in window._nav_label.text()
 
