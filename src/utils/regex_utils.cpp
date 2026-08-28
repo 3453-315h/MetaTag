@@ -25,7 +25,9 @@ QString RegexUtils::replaceMatches(const QString& pattern, const QString& replac
     if (!re.isValid())
         return text;
     
-    return text.replace(re, replacement);
+    QString result = text;
+    result.replace(re, replacement);
+    return result;
 }
 
 }
