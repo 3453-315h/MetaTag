@@ -1,0 +1,3 @@
+## 2024-05-24 - Screen Reader Buddy Associations in PySide6 Layouts
+**Learning:** While `QFormLayout.addRow()` automatically establishes buddy relationships between labels and their inputs, generic layouts like `QHBoxLayout` and `QVBoxLayout` do not. Labels in these layouts require explicit `setBuddy(widget)` calls to associate them with inputs for screen readers, and require the use of `&` for keyboard accelerators (e.g. `&Search:`).
+**Action:** When working in PySide6, always manually assign `setBuddy()` and include an `&` for `QLabel` texts when they are placed in `QHBoxLayout` or `QVBoxLayout` alongside inputs like `QLineEdit` or `QSlider` to ensure full accessibility support.
