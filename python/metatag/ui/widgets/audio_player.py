@@ -39,6 +39,7 @@ class AudioPlayer(QWidget):
         self._time_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         self._seek_slider = QSlider(Qt.Orientation.Horizontal)
+        self._seek_slider.setAccessibleName("Seek")
         self._seek_slider.setEnabled(False)
         
         self._volume_slider = QSlider(Qt.Orientation.Horizontal)
@@ -47,10 +48,13 @@ class AudioPlayer(QWidget):
         self._volume_slider.setFixedWidth(80)
         self._audio_output.setVolume(0.7)
         
+        vol_label = QLabel("&Vol:")
+        vol_label.setBuddy(self._volume_slider)
+
         layout.addWidget(self._play_button)
         layout.addWidget(self._time_label)
         layout.addWidget(self._seek_slider)
-        layout.addWidget(QLabel("Vol:"))
+        layout.addWidget(vol_label)
         layout.addWidget(self._volume_slider)
 
     def _connect_signals(self) -> None:
