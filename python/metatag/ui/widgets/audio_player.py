@@ -39,9 +39,11 @@ class AudioPlayer(QWidget):
         self._time_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         self._seek_slider = QSlider(Qt.Orientation.Horizontal)
+        self._seek_slider.setAccessibleName("Seek Position")
         self._seek_slider.setEnabled(False)
         
         self._volume_slider = QSlider(Qt.Orientation.Horizontal)
+        self._volume_slider.setAccessibleName("Volume")
         self._volume_slider.setRange(0, 100)
         self._volume_slider.setValue(70)
         self._volume_slider.setFixedWidth(80)
