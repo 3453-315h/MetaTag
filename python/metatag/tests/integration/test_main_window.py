@@ -140,7 +140,7 @@ def test_main_window_load_files(qtbot, capsys):
 
                 assert MockTrack.call_count == 2
                 assert len(window._tracks) == 2
-                assert window._file_list.rowCount() == 2
+                assert window._file_list.model().rowCount() == 2
                 assert window._current_index == 0
 
                 assert window._artist_edit.text() == "Test Artist"
@@ -172,10 +172,10 @@ def test_main_window_apply_to_selected(qtbot):
     qtbot.add_widget(window)
 
     mock_tracks = [_make_mock_track(artist=f"Artist {i}") for i in range(3)]
+    window._track_model.beginResetModel()
     window._tracks = mock_tracks
-    # Populate file-list table
-    for i in range(3):
-        window._append_table_row(i + 1, f"Track {i}")
+    window._track_model.endResetModel()
+
     # Select all rows
     window._file_list.selectAll()
 
@@ -247,7 +247,7 @@ def test_main_window_cover_art_drag_drop(qtbot):
         tmp_path = tmp.name
 
     try:
-        with patch("PIL.Image.open", return_value=Image.new("RGB", (100, 100), color="green")):
+        with patch("metatag.ui.main_window.Image.open", return_value=Image.new("RGB", (100, 100), color="green")):
             window._cover_label.coverDropped.emit(tmp_path)
 
             assert mock_track.cover_art is not None
@@ -304,9 +304,9 @@ def test_main_window_navigation(qtbot):
     qtbot.add_widget(window)
 
     tracks = [_make_mock_track(artist=f"Artist {i}") for i in range(3)]
+    window._track_model.beginResetModel()
     window._tracks = tracks
-    for i in range(3):
-        window._append_table_row(i + 1, f"Track {i}")
+    window._track_model.endResetModel()
 
     window._file_list.selectRow(0)
     assert window._current_index == 0
@@ -338,9 +338,9 @@ def test_main_window_nav_label(qtbot):
     assert "0 / 0" in window._nav_label.text()
 
     tracks = [_make_mock_track() for _ in range(5)]
+    window._track_model.beginResetModel()
     window._tracks = tracks
-    for i in range(5):
-        window._append_table_row(i + 1, f"Track {i}")
+    window._track_model.endResetModel()
     window._file_list.selectRow(0)
 
     assert "1 / 5" in window._nav_label.text()
