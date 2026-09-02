@@ -247,7 +247,7 @@ def test_main_window_cover_art_drag_drop(qtbot):
         tmp_path = tmp.name
 
     try:
-        with patch("PIL.Image.open", return_value=Image.new("RGB", (100, 100), color="green")):
+        with patch("metatag.ui.main_window.Image.open", return_value=Image.new("RGB", (100, 100), color="green")):
             window._cover_label.coverDropped.emit(tmp_path)
 
             assert mock_track.cover_art is not None
