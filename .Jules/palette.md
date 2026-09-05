@@ -1,0 +1,3 @@
+## 2024-05-24 - Screen Reader Support in Custom Layouts
+**Learning:** In PySide6, UI elements like `QSlider` default to an empty accessibleName. Additionally, while `QFormLayout.addRow()` automatically establishes buddy relationships between labels and inputs, other layouts like `QHBoxLayout` or `QVBoxLayout` do not.
+**Action:** When using layouts other than `QFormLayout`, explicitly call `label.setBuddy(widget)` to enable screen reader associations and use an ampersand (&) in the label text to assign keyboard accelerators. Also, explicitly set `.setAccessibleName()` and `.setToolTip()` for standard UI elements like `QSlider`.
