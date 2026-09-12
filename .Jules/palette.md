@@ -1,0 +1,3 @@
+## 2026-09-12 - AudioPlayer QSlider Accessibility
+**Learning:** In PySide6, standard UI elements like QSlider default to having an empty accessibleName. When using layouts other than QFormLayout (e.g. QHBoxLayout), labels aren't automatically associated with their inputs. Explicitly setting `.setAccessibleName()` on interactive elements and manually establishing buddy relationships via `.setBuddy(widget)` is necessary to ensure screen reader compatibility and keyboard shortcut functionality.
+**Action:** When adding standard interactive widgets (like QSlider) to layouts other than QFormLayout, always explicitly set their accessible name/tooltip and establish buddy relationships with their descriptive labels.
