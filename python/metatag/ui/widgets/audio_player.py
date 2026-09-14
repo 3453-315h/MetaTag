@@ -33,24 +33,36 @@ class AudioPlayer(QWidget):
         
         self._play_button = QPushButton("Play")
         self._play_button.setFixedWidth(60)
+        self._play_button.setAccessibleName("Play or pause audio")
+        self._play_button.setToolTip("Play or pause audio")
         
         self._time_label = QLabel("0:00 / 0:00")
         self._time_label.setFixedWidth(80)
         self._time_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._time_label.setAccessibleName("Track playback time")
         
         self._seek_slider = QSlider(Qt.Orientation.Horizontal)
         self._seek_slider.setEnabled(False)
+        self._seek_slider.setAccessibleName("Seek position")
+        self._seek_slider.setToolTip("Seek position")
+
+        self._volume_label = QLabel("&Vol:")
+        self._volume_label.setToolTip("Volume level")
         
         self._volume_slider = QSlider(Qt.Orientation.Horizontal)
         self._volume_slider.setRange(0, 100)
         self._volume_slider.setValue(70)
         self._volume_slider.setFixedWidth(80)
+        self._volume_slider.setAccessibleName("Volume level")
+        self._volume_slider.setToolTip("Volume level")
         self._audio_output.setVolume(0.7)
         
+        self._volume_label.setBuddy(self._volume_slider)
+
         layout.addWidget(self._play_button)
         layout.addWidget(self._time_label)
         layout.addWidget(self._seek_slider)
-        layout.addWidget(QLabel("Vol:"))
+        layout.addWidget(self._volume_label)
         layout.addWidget(self._volume_slider)
 
     def _connect_signals(self) -> None:
