@@ -1,0 +1,3 @@
+## 2024-09-18 - QLabel Accessibility with Non-Form Layouts
+**Learning:** While QFormLayout in PySide6 automatically establishes screen reader associations between labels and input widgets (buddies), other layout types like QHBoxLayout and QVBoxLayout require explicitly calling `label.setBuddy(widget)` for accessibility (so screen readers know what input the label is describing). Additionally, you can add an ampersand (`&`) in the label text to automatically create a keyboard accelerator shortcut (e.g., `&Search:` will bind Alt+S to focus the search input).
+**Action:** Always ensure any standalone QLabels placed alongside inputs have their buddies explicitly set and have keyboard shortcuts defined if appropriate for quicker navigation.
