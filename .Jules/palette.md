@@ -1,0 +1,3 @@
+## 2024-05-24 - PySide6 Buddy Relationships Outside QFormLayout
+**Learning:** While `QFormLayout.addRow()` automatically creates buddy relationships between labels and inputs, manual pairing is required when using other layouts (like `QHBoxLayout`). Standard UI labels won't announce their associated input in screen readers or support keyboard shortcuts unless `setBuddy()` is explicitly called.
+**Action:** When creating forms or search bars outside of `QFormLayout`, always use `label.setBuddy(input_widget)` and assign a keyboard accelerator via ampersand (e.g., `&Search:`) to ensure accessibility.
