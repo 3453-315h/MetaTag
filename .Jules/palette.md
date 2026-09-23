@@ -1,0 +1,3 @@
+## 2026-09-23 - Audio Player Slider Accessibility
+**Learning:** In PySide6, `QSlider` defaults to an empty `accessibleName`, which harms screen reader compatibility. Furthermore, when using layouts like `QHBoxLayout`, explicit buddy mapping using `.setBuddy()` with a `QLabel` (including an ampersand for keyboard accelerators) is required for proper screen reader association and keyboard accessibility.
+**Action:** Always set `.setAccessibleName()` on standalone sliders. For labeled inputs or sliders in non-form layouts, explicitly create a `QLabel` with an accelerator (e.g., `"&Vol:"`) and use `.setBuddy()` to map it to the corresponding widget.
