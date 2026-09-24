@@ -1,0 +1,3 @@
+## 2024-05-14 - PySide6 QSlider Accessibility Defaults
+**Learning:** PySide6 standard UI elements like `QSlider` default to having an empty accessibleName. Also, layout additions like `layout.addWidget(QLabel("Vol:"))` prevent setting buddy relationships.
+**Action:** Explicitly set `.setAccessibleName()` on sliders, and use variables for labels to call `.setBuddy(widget)` and include keyboard accelerators (e.g., `&Vol:`).
