@@ -1,0 +1,3 @@
+## 2024-05-24 - Accessible Qt Sliders
+**Learning:** In PySide6, standard UI elements like `QSlider` default to having an empty `accessibleName`, making them invisible or unclear to screen readers. Furthermore, inline anonymous labels (e.g., `layout.addWidget(QLabel('Vol:'))`) cannot be associated with these inputs using `.setBuddy()`, breaking keyboard navigation (Alt+key shortcuts) and accessibility context.
+**Action:** Always instantiate labels as variables, explicitly call `label.setBuddy(widget)` for non-form layouts (using `&` in the label text for shortcuts), and explicitly set `.setAccessibleName()` and `.setToolTip()` on slider inputs to ensure full keyboard and screen reader accessibility.
