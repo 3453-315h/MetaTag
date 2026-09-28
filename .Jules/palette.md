@@ -1,0 +1,3 @@
+## 2024-05-17 - PySide6 Screen Reader Accessibility for Sliders and Labels
+**Learning:** Standard PySide6 UI elements like `QSlider` have an empty `accessibleName` by default, making them completely opaque to screen readers. Furthermore, using inline anonymous labels (e.g., `layout.addWidget(QLabel("Vol:"))`) prevents you from linking the label to its corresponding input using `.setBuddy()`.
+**Action:** Always instantiate labels as variables so `.setBuddy(widget)` can be called to establish screen reader associations. Use an ampersand (`&`) in the label text to assign keyboard accelerators. Additionally, explicitly set `.setAccessibleName()` on all interactive elements like `QSlider` to ensure proper accessibility.
