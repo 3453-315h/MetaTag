@@ -1,0 +1,4 @@
+## 2024-05-18 - Improve Audio Player Sliders Accessibility in PySide6
+
+**Learning:** PySide6 UI elements like `QSlider` lack intrinsic `accessibleName` properties by default. Furthermore, inline anonymous instances of `QLabel` (e.g. `layout.addWidget(QLabel("Text"))`) prevent the use of `setBuddy()` to build logical relationships between labels and their companion widgets. This hinders keyboard accessibility (e.g., using Alt+V to focus the volume slider) and impairs the screen reader experience.
+**Action:** Always assign explicit `.setAccessibleName()` values to `QSlider` (and similar UI control) elements. Avoid anonymous inline `QLabel` usage; instantiate the label as a variable, use an ampersand (`&`) to set an accelerator key, and explicitly use `.setBuddy()` to link the label to its input field.
