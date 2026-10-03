@@ -18,10 +18,15 @@ def itunes_url_to_path(url: str) -> Path:
     if parsed.scheme != "file":
         raise ValueError(f"Not a file URL: {url}")
 
-    if parsed.netloc:
+    if parsed.netloc and parsed.netloc.lower() != 'localhost':
         path = f"//{parsed.netloc}{parsed.path}"
     else:
         path = parsed.path
+
+    # Windows: urlparse may yield an empty netloc and a path starting with // for paths like file:////tmp...
+    # Strip the extra leading slash to get /tmp..., but only if it's not a network share (which already has netloc).
+    if not parsed.netloc and path.startswith("//") and len(path) > 2 and path[2] != "/":
+        path = path[1:]
 
     # Windows: file:///C:/Users/... → /C:/Users/… → C:/Users/…
     if path.startswith("/") and len(path) > 2 and path[2] == ":":
