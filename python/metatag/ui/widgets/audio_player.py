@@ -40,9 +40,11 @@ class AudioPlayer(QWidget):
         
         self._seek_slider = QSlider(Qt.Orientation.Horizontal)
         self._seek_slider.setEnabled(False)
+        self._seek_slider.setAccessibleName("Seek")
         
         self._volume_slider = QSlider(Qt.Orientation.Horizontal)
         self._volume_slider.setRange(0, 100)
+        self._volume_slider.setAccessibleName("Volume")
         self._volume_slider.setValue(70)
         self._volume_slider.setFixedWidth(80)
         self._audio_output.setVolume(0.7)
