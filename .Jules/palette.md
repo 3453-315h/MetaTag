@@ -1,0 +1,3 @@
+## 2024-05-18 - PySide6 Slider and Label Accessibility
+**Learning:** PySide6 standard elements like QSlider lack descriptive names by default, making them inaccessible. Additionally, using inline anonymous labels in layouts like QHBoxLayout or QVBoxLayout prevents using `.setBuddy()` to associate the label with input fields for screen readers and keyboard shortcuts.
+**Action:** Always set `.setAccessibleName()` on standalone sliders, and instantiate labels as variables when using layouts other than QFormLayout (which handles buddying automatically), linking them explicitly using `label.setBuddy(widget)` and an ampersand (`&`) for accelerators.
