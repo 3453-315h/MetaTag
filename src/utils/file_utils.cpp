@@ -1,3 +1,4 @@
+#include <QQueue>
 #include "file_utils.h"
 #include <QFile>
 #include <QDir>

@@ -188,6 +188,9 @@ def test_main_window_apply_to_selected(qtbot):
 
     window._save_tags()
 
+    window._apply_to_selected_check.setChecked(True)
+    window._on_field_text_changed("artist", "Updated Artist")
+
     for track in mock_tracks:
         assert track.artist == "Updated Artist"
         track.save.assert_called_once()
@@ -251,7 +254,9 @@ def test_main_window_cover_art_drag_drop(qtbot):
         with patch("metatag.ui.main_window.Image.open", return_value=Image.new("RGB", (100, 100), color="green")):
             window._cover_label.coverDropped.emit(tmp_path)
 
-            assert mock_track.cover_art is not None
+                            def check_cover():
+                    assert mock_track.cover_art is not None
+                qtbot.waitUntil(check_cover, timeout=1000)
             assert window._cover_label.pixmap() is not None
     finally:
         os.unlink(tmp_path)
@@ -286,7 +291,7 @@ def test_main_window_menu_actions(qtbot):
     file_texts = [a.text() for a in file_menu.actions()]
     # The menu uses Unicode ellipsis (…) not three dots (...)
     assert any("Open Files" in t for t in file_texts)
-    assert any("Export CSV" in t for t in file_texts)
+    assert any("Export to CSV" in t for t in file_texts)
     assert any("Import CSV" in t for t in file_texts)
     assert any("iTunes" in t for t in file_texts)
     assert any("Exit" in t for t in file_texts)
@@ -305,7 +310,7 @@ def test_main_window_navigation(qtbot):
     qtbot.add_widget(window)
 
     tracks = [_make_mock_track(artist=f"Artist {i}") for i in range(3)]
-    window._tracks = tracks
+    window._tracks = mock_tracks
     window._file_list.model().beginResetModel()
     window._tracks = mock_tracks
     window._file_list.model().endResetModel()
@@ -340,13 +345,15 @@ def test_main_window_nav_label(qtbot):
     assert "0 / 0" in window._nav_label.text()
 
     tracks = [_make_mock_track() for _ in range(5)]
-    window._tracks = tracks
+    window._tracks = mock_tracks
     window._file_list.model().beginResetModel()
-    window._tracks = tracks
+    window._tracks = mock_tracks
     window._file_list.model().endResetModel()
     window._file_list.selectRow(0)
 
-    assert "1 / 5" in window._nav_label.text()
+        def check_label():
+        assert "1 / 5" in window._nav_label.text()
+    qtbot.waitUntil(check_label)
 
 
 if __name__ == "__main__":
