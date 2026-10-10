@@ -1,0 +1,3 @@
+## 2024-10-24 - Accessibility bindings in Qt/PySide6
+**Learning:** Standard Qt widgets like `QSlider` do not have default accessible names, leading to poor screen reader experiences. Also, passing strings directly to `layout.addWidget(QLabel("Vol:"))` prevents setting buddy relationships (`setBuddy`), which are essential for accessibility focus passing.
+**Action:** Always explicitly instantiate `QLabel` variables, define a keyboard shortcut indicator (using `&`), and link them to their target widget using `.setBuddy()`. Additionally, always set `.setAccessibleName()` on interactive widgets like sliders that lack text labels.
