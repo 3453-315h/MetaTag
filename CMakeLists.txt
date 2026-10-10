@@ -13,7 +13,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Widgets Network)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network Test)
 find_package(TagLib REQUIRED)
 
 option(BUILD_TESTS "Build tests" OFF)
