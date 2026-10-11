@@ -1,0 +1,3 @@
+## 2026-10-11 - PySide6 QSlider and QLabel Accessibility
+**Learning:** Standard PySide6 UI elements like `QSlider` default to having an empty accessibleName. Explicitly setting `.setAccessibleName()` is necessary for proper screen reader compatibility. Additionally, for non-form layouts, avoid inline anonymous labels (e.g., `layout.addWidget(QLabel('Text'))`) as they prevent setting `.setBuddy()` relationships; instantiate them as variables instead.
+**Action:** Always set `.setAccessibleName()` on interactive elements like sliders and buttons, and explicitly instantiate `QLabel`s to use `.setBuddy()` for linking labels to inputs.
