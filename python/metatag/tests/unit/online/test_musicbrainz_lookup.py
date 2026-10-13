@@ -55,7 +55,7 @@ def test_handle_reply_finished_success():
     captured_ids = []
 
     def capture(ids):
-        captured_ids.extend(ids)
+        captured_ids.extend([item["id"] for item in ids])
 
     lookup.releases_fetched.connect(capture)
 
