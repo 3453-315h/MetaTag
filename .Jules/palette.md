@@ -1,0 +1,3 @@
+## 2024-05-18 - QSlider Accessibility Names and Buddy Relationships in PySide6
+**Learning:** PySide6 default elements like QSlider lack accessible names out of the box, requiring explicit calls to `.setAccessibleName()` for proper screen reader usage. Furthermore, using inline anonymous labels (`layout.addWidget(QLabel("Vol:"))`) prevents creating proper buddy relationships; elements must be instantiated as variables so that `.setBuddy()` can be properly mapped.
+**Action:** Always assign explicit accessibility names using `.setAccessibleName()` on standalone sliders, and ensure labels are instantiated as variables rather than anonymously, utilizing ampersands (e.g., `&Vol:`) to provide keyboard access keys.
