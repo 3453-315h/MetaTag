@@ -178,6 +178,7 @@ def test_main_window_apply_to_selected(qtbot):
     window._track_model.endResetModel()
     # Select all rows
     window._file_list.selectAll()
+    qtbot.wait(10)
 
     window._apply_to_selected_check.setChecked(True)
     window._artist_edit.setText("Updated Artist")
@@ -243,6 +244,7 @@ def test_main_window_cover_art_drag_drop(qtbot):
     window._track_model.beginResetModel()
     window._track_model.endResetModel()
     window._file_list.selectRow(0)
+    qtbot.wait(10)
 
     with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
         img = Image.new("RGB", (100, 100), color="green")
@@ -312,6 +314,7 @@ def test_main_window_navigation(qtbot):
     window._track_model.endResetModel()
 
     window._file_list.selectRow(0)
+    qtbot.wait(10)
     assert window._current_index == 0
 
     qtbot.mouseClick(window._next_button, Qt.MouseButton.LeftButton)
@@ -329,6 +332,7 @@ def test_main_window_navigation(qtbot):
 
     # Should not go before the start
     window._file_list.selectRow(0)
+    qtbot.wait(10)
     qtbot.mouseClick(window._prev_button, Qt.MouseButton.LeftButton)
     assert window._current_index == 0
 
@@ -345,6 +349,7 @@ def test_main_window_nav_label(qtbot):
     window._track_model.beginResetModel()
     window._track_model.endResetModel()
     window._file_list.selectRow(0)
+    qtbot.wait(10)
 
     assert "1 / 5" in window._nav_label.text()
 
