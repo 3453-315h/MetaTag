@@ -140,7 +140,7 @@ def test_main_window_load_files(qtbot, capsys):
 
                 assert MockTrack.call_count == 2
                 assert len(window._tracks) == 2
-                assert window._file_list.rowCount() == 2
+                assert window._file_list.model().rowCount() == 2
                 assert window._current_index == 0
 
                 assert window._artist_edit.text() == "Test Artist"
@@ -174,8 +174,8 @@ def test_main_window_apply_to_selected(qtbot):
     mock_tracks = [_make_mock_track(artist=f"Artist {i}") for i in range(3)]
     window._tracks = mock_tracks
     # Populate file-list table
-    for i in range(3):
-        window._append_table_row(i + 1, f"Track {i}")
+    window._track_model.beginResetModel()
+    window._track_model.endResetModel()
     # Select all rows
     window._file_list.selectAll()
 
@@ -240,6 +240,9 @@ def test_main_window_cover_art_drag_drop(qtbot):
     mock_track = _make_mock_track()
     window._tracks = [mock_track]
     window._current_index = 0
+    window._track_model.beginResetModel()
+    window._track_model.endResetModel()
+    window._file_list.selectRow(0)
 
     with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
         img = Image.new("RGB", (100, 100), color="green")
@@ -285,7 +288,7 @@ def test_main_window_menu_actions(qtbot):
     file_texts = [a.text() for a in file_menu.actions()]
     # The menu uses Unicode ellipsis (…) not three dots (...)
     assert any("Open Files" in t for t in file_texts)
-    assert any("Export CSV" in t for t in file_texts)
+    assert any("CSV Report" in t for t in file_texts)
     assert any("Import CSV" in t for t in file_texts)
     assert any("iTunes" in t for t in file_texts)
     assert any("Exit" in t for t in file_texts)
@@ -305,8 +308,8 @@ def test_main_window_navigation(qtbot):
 
     tracks = [_make_mock_track(artist=f"Artist {i}") for i in range(3)]
     window._tracks = tracks
-    for i in range(3):
-        window._append_table_row(i + 1, f"Track {i}")
+    window._track_model.beginResetModel()
+    window._track_model.endResetModel()
 
     window._file_list.selectRow(0)
     assert window._current_index == 0
@@ -339,8 +342,8 @@ def test_main_window_nav_label(qtbot):
 
     tracks = [_make_mock_track() for _ in range(5)]
     window._tracks = tracks
-    for i in range(5):
-        window._append_table_row(i + 1, f"Track {i}")
+    window._track_model.beginResetModel()
+    window._track_model.endResetModel()
     window._file_list.selectRow(0)
 
     assert "1 / 5" in window._nav_label.text()
