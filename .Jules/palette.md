@@ -1,0 +1,3 @@
+## 2025-02-18 - Explicit Buddy Relationships in Qt Layouts
+**Learning:** While `QFormLayout.addRow()` automatically establishes buddy relationships between labels and inputs for screen reader support, other layout types like `QHBoxLayout` and `QVBoxLayout` do not. Labels added manually to these layouts require explicit `.setBuddy()` associations.
+**Action:** When adding labeled input fields in `QHBoxLayout` or `QVBoxLayout`, always call `label.setBuddy(input_widget)` and consider adding keyboard accelerators (using an ampersand, e.g., "&Search:") for improved accessibility.
