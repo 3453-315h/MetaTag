@@ -32,5 +32,6 @@ jobs:
     - name: Run tests
       env:
         QT_QPA_PLATFORM: offscreen
+        PYTHONPATH: .
       run: |
-        pytest metatag/tests
+        python -m pytest metatag/tests
