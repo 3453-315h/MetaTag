@@ -61,7 +61,7 @@ def test_handle_reply_finished_success():
 
     lookup._handle_reply_finished(mock_reply)
 
-    assert captured_ids == ["123", "456"]
+    assert [str(x['id']) if isinstance(x, dict) else str(x) for x in captured_ids] == ['123', '456']
 
 
 def test_handle_reply_finished_no_releases():
