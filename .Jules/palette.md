@@ -1,0 +1,3 @@
+## 2024-10-18 - QLabel setBuddy for Non-FormLayout Layouts
+**Learning:** In PySide6, QFormLayout.addRow() automatically establishes buddy relationships between labels and inputs. For other layouts like QHBoxLayout or QVBoxLayout, we must explicitly call `label.setBuddy(widget)` to enable screen reader associations, and use an ampersand (&) in the label text to assign keyboard accelerators (e.g., '&Search:' for Alt+S).
+**Action:** Always check the parent layout of a QLabel. If it's not a QFormLayout, manually set the buddy relationship using `.setBuddy()`. Also consider adding keyboard accelerators with '&' to improve keyboard accessibility.
