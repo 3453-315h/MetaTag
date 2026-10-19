@@ -88,34 +88,38 @@ def test_cover_art_label_drag_drop(qtbot):
     assert "No Cover Art" in label.text()
 
 
+class MockTrack:
+    """A minimal mock track to behave exactly like core.Track without side-effects."""
+    def __init__(self, **kwargs):
+        self.file_path = Mock(name="path.mp3", __fspath__=lambda: "path.mp3")
+        self.file_path.name = "path.mp3"
+        self.artist = ""
+        self.album = ""
+        self.title = ""
+        self.track_number = 0
+        self.track_total = 0
+        self.disc_number = 0
+        self.disc_total = 0
+        self.genre = ""
+        self.year = 0
+        self.comment = ""
+        self.composer = ""
+        self.grouping = ""
+        self.bpm = 0
+        self.cover_art = None
+        self.duration = 0
+        self.is_loaded = True
+        self.is_dirty = False
+
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
+    def load(self): return True
+    def save(self): return True
+
 def _make_mock_track(**kwargs):
     """Build a Mock Track with all required attributes."""
-    defaults = dict(
-        file_path=Mock(name="path.mp3", __fspath__=lambda: "path.mp3"),
-        artist="",
-        album="",
-        title="",
-        track_number=0,
-        track_total=0,
-        disc_number=0,
-        disc_total=0,
-        genre="",
-        year=0,
-        comment="",
-        composer="",
-        grouping="",
-        bpm=0,
-        cover_art=None,
-        duration=0,
-        is_loaded=True,
-        is_dirty=False,
-    )
-    defaults.update(kwargs)
-    mock = Mock(**defaults)
-    mock.load = Mock(return_value=True)
-    mock.save = Mock(return_value=True)
-    mock.file_path.name = "path.mp3"
-    return mock
+    return MockTrack(**kwargs)
 
 
 def test_main_window_load_files(qtbot, capsys):
@@ -140,7 +144,7 @@ def test_main_window_load_files(qtbot, capsys):
 
                 assert MockTrack.call_count == 2
                 assert len(window._tracks) == 2
-                assert window._file_list.rowCount() == 2
+                assert window._file_list.model().rowCount() == 2
                 assert window._current_index == 0
 
                 assert window._artist_edit.text() == "Test Artist"
@@ -173,11 +177,13 @@ def test_main_window_apply_to_selected(qtbot):
 
     mock_tracks = [_make_mock_track(artist=f"Artist {i}") for i in range(3)]
     window._tracks = mock_tracks
-    # Populate file-list table
-    for i in range(3):
-        window._append_table_row(i + 1, f"Track {i}")
+    window._track_model.beginResetModel()
+    window._track_model._tracks = window._tracks
+    window._track_model.endResetModel()
+
     # Select all rows
     window._file_list.selectAll()
+    qtbot.wait(100) # wait for selectionChanged to process
 
     window._apply_to_selected_check.setChecked(True)
     window._artist_edit.setText("Updated Artist")
@@ -238,6 +244,8 @@ def test_main_window_cover_art_drag_drop(qtbot):
     qtbot.add_widget(window)
 
     mock_track = _make_mock_track()
+    # explicitly set cover_art Mock return to allow assigning a value
+    mock_track.cover_art = None
     window._tracks = [mock_track]
     window._current_index = 0
 
@@ -305,10 +313,12 @@ def test_main_window_navigation(qtbot):
 
     tracks = [_make_mock_track(artist=f"Artist {i}") for i in range(3)]
     window._tracks = tracks
-    for i in range(3):
-        window._append_table_row(i + 1, f"Track {i}")
+    window._track_model.beginResetModel()
+    window._track_model._tracks = window._tracks
+    window._track_model.endResetModel()
 
     window._file_list.selectRow(0)
+    qtbot.wait(100)
     assert window._current_index == 0
 
     qtbot.mouseClick(window._next_button, Qt.MouseButton.LeftButton)
@@ -339,9 +349,12 @@ def test_main_window_nav_label(qtbot):
 
     tracks = [_make_mock_track() for _ in range(5)]
     window._tracks = tracks
-    for i in range(5):
-        window._append_table_row(i + 1, f"Track {i}")
+    window._track_model.beginResetModel()
+    window._track_model._tracks = window._tracks
+    window._track_model.endResetModel()
+
     window._file_list.selectRow(0)
+    qtbot.wait(100)
 
     assert "1 / 5" in window._nav_label.text()
 

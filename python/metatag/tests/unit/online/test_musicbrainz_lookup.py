@@ -61,7 +61,9 @@ def test_handle_reply_finished_success():
 
     lookup._handle_reply_finished(mock_reply)
 
-    assert captured_ids == ["123", "456"]
+    assert len(captured_ids) == 2
+    assert captured_ids[0]["id"] == "123"
+    assert captured_ids[1]["id"] == "456"
 
 
 def test_handle_reply_finished_no_releases():
