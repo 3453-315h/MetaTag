@@ -88,34 +88,38 @@ def test_cover_art_label_drag_drop(qtbot):
     assert "No Cover Art" in label.text()
 
 
+class MockTrack:
+    """A minimal mock track to behave exactly like core.Track without side-effects."""
+    def __init__(self, **kwargs):
+        self.file_path = Mock(name="path.mp3", __fspath__=lambda: "path.mp3")
+        self.file_path.name = "path.mp3"
+        self.artist = ""
+        self.album = ""
+        self.title = ""
+        self.track_number = 0
+        self.track_total = 0
+        self.disc_number = 0
+        self.disc_total = 0
+        self.genre = ""
+        self.year = 0
+        self.comment = ""
+        self.composer = ""
+        self.grouping = ""
+        self.bpm = 0
+        self.cover_art = None
+        self.duration = 0
+        self.is_loaded = True
+        self.is_dirty = False
+
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
+    def load(self): return True
+    def save(self): return True
+
 def _make_mock_track(**kwargs):
     """Build a Mock Track with all required attributes."""
-    defaults = dict(
-        file_path=Mock(name="path.mp3", __fspath__=lambda: "path.mp3"),
-        artist="",
-        album="",
-        title="",
-        track_number=0,
-        track_total=0,
-        disc_number=0,
-        disc_total=0,
-        genre="",
-        year=0,
-        comment="",
-        composer="",
-        grouping="",
-        bpm=0,
-        cover_art=None,
-        duration=0,
-        is_loaded=True,
-        is_dirty=False,
-    )
-    defaults.update(kwargs)
-    mock = Mock(**defaults)
-    mock.load = Mock(return_value=True)
-    mock.save = Mock(return_value=True)
-    mock.file_path.name = "path.mp3"
-    return mock
+    return MockTrack(**kwargs)
 
 
 def test_main_window_load_files(qtbot, capsys):
