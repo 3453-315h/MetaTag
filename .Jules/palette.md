@@ -1,0 +1,3 @@
+## 2025-02-27 - QSlider Accessibility and Label Buddies in PySide6
+**Learning:** In PySide6, standard UI elements like QSlider default to having an empty accessibleName. This negatively impacts screen reader compatibility. Additionally, using anonymous labels directly in layouts (e.g., `layout.addWidget(QLabel("Text"))`) prevents the possibility of setting up buddy relationships, which are necessary for keyboard accessibility (Alt+key shortcuts) and screen reader focus context, especially for layouts other than QFormLayout.
+**Action:** Always instantiate QLabels explicitly and use `.setBuddy()` when pairing them with inputs/sliders in custom layouts. Use `.setAccessibleName()` on standalone sliders to ensure their purpose is clear to screen readers.
