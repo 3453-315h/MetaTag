@@ -1,0 +1,3 @@
+## 2024-10-21 - Accessible PySide6 Sliders and Labels
+**Learning:** PySide6 standard widgets like `QSlider` lack default `accessibleName` metadata, making them opaque to screen readers. Furthermore, using inline anonymous labels (e.g., `layout.addWidget(QLabel("Vol:"))`) prevents creating proper buddy relationships for keyboard navigation.
+**Action:** Always instantiate labels as variables, use `setBuddy()` to associate them with their inputs, include keyboard accelerators (`&`), and explicitly set `setAccessibleName()` and `setToolTip()` on interactive elements like sliders and buttons to ensure full accessibility and discoverability.
