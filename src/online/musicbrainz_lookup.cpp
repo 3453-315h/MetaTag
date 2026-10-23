@@ -42,21 +42,12 @@ void MusicBrainzLookup::lookupRelease(const QString& artist, const QString& albu
     request.setTransferTimeout(10000); // 10 seconds
     
     QNetworkReply *reply = nam->get(request);
-    connect(reply, &QNetworkReply::sslErrors, this, [reply](const QList<QSslError> &errors) {
-        QList<QSslError> ignorableErrors;
+    connect(reply, &QNetworkReply::sslErrors, this, [this](const QList<QSslError> &errors) {
+        QStringList msgs;
         for (const QSslError &error : errors) {
-            // Only ignore self-signed certificates for development/testing
-            if (error.error() == QSslError::SelfSignedCertificate ||
-                error.error() == QSslError::SelfSignedCertificateInChain) {
-                ignorableErrors.append(error);
-            }
+            msgs.append(error.errorString());
         }
-        if (ignorableErrors.size() == errors.size()) {
-            qWarning() << "Ignoring self-signed certificate errors:" << ignorableErrors;
-            reply->ignoreSslErrors(ignorableErrors);
-        } else {
-            qWarning() << "SSL errors occurred and will not be ignored:" << errors;
-        }
+        emit lookupError("SSL certificate validation failed: " + msgs.join("; "));
     });
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         if (reply->error() != QNetworkReply::NoError) {

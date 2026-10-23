@@ -1,0 +1,361 @@
+MetaTag - clean-sweep code review
+Reviewed: 9 October 2026
+Repository: https://github.com/3453-315h/MetaTag
+HEAD: d85ca7ee38f2273f66a7aa2c29390b2d72e0798e
+Remote HEAD rechecked after the review; unchanged.
+
+Verdict
+Not ready for unattended editing of a valuable music library. Python starts and
+157 tests pass, but there are confirmed metadata-loss and wrong-track edit paths.
+The native implementation also has source-level build blockers. Use copies of
+files until the round-trip, selection and undo gates below pass.
+No repository files were changed. Findings below distinguish executed probes
+from source inspection; native compile errors are not claimed as compiler output.
+
+Scope and executed checks
+- Read all production Python modules: core/config/undo/track/export,
+  CSV/iTunes/MusicBee imports, all four online clients, main window, model,
+  all dialogs, audio player, pattern/rename/file/regex/string utilities,
+  entry points and packaging.
+- Read all native core, import, online, UI and utility sources and headers;
+  CMake targets, presets, scripts, tests, workflows and documentation.
+- Read the Python test modules and ran the full suite, including Qt tests.
+  From python/: python3 -m pytest metatag/tests -q, Qt offscreen.
+  Result: 165 tests total = 157 passed + 8 failed, 0.78 seconds on final run.
+- Environment: Linux, Python 3.10, PySide6 6.12.0, Mutagen 1.48.1,
+  Pillow 12.3.0, pytest 9.1.1. CI uses Windows/Python 3.12; that exact
+  environment was not run. Dependencies satisfy the declared lower bounds.
+- Generated disposable audio with FFmpeg and exercised MP3, WAV, AIFF,
+  FLAC, M4A, Ogg Vorbis and Opus save/reload paths. Ran additional isolated
+  probes for destructive file helpers, undo indices, selection, cover errors,
+  metadata preservation, iTunes clearing and HTML output.
+- Native CMake configure attempted with BUILD_TESTS=ON. It stopped at
+  CMakeLists.txt:16 because Qt6Config.cmake was unavailable. Native build and
+  runtime tests remain open. No live metadata-service requests or benchmarks
+  were used as proof of correctness.
+
+Numbered fix list, highest risk first
+
+1. [P1, reproduced] ID3 loading loses fields that later saves overwrite.
+   python/metatag/core/track.py:288-305, 332-355, 579-599.
+   MP3 comments are read through an easy interface that does not expose COMM.
+   WAV and AIFF return raw ID3-backed objects even with easy=True, so lower-case
+   artist/album/title keys do not read TPE1/TALB/TIT2. There is no raw-ID3 fallback
+   for these basic fields or comments. Disposable save/reload probes returned
+   blank artist/title/comment for WAV and AIFF, and blank comments for MP3.
+   Editing genre then saving clears those original tags. Read all supported
+   ID3 fields from the real tag container and test unrelated-edit preservation.
+
+2. [P1, reproduced] A routine save discards metadata the editor did not change.
+   python/metatag/core/track.py:291-305, 533-535, 581-599, 630-673,
+   685-698, 723-758; src/core/track.cpp:39-45, 150-180, 211-256.
+   Python reads only the first artist and only the year from full dates, then
+   rewrites every field. All ID3 comments and all pictures are replaced.
+   A FLAC with artists [Alice, Bob], date 2024-06-12 and front/back covers became
+   [Alice], 2024 and one cover after changing only genre. Native also collapses
+   dates to year and replaces all pictures. Preserve untouched field values,
+   multi-value tags, date precision and non-front pictures; track edits per field.
+
+3. [P1, reproduced] A failed image decode is interpreted as an explicit clear.
+   python/metatag/core/track.py:420-485, 533-535, 712-716, 763-778.
+   If embedded art cannot be decoded, cover_art remains None. Any unrelated tag
+   save calls _remove_cover_art. A FLAC with one undecodable picture lost it
+   after a title edit. Keep original bytes and distinguish unavailable/unchanged
+   art from the user's explicit delete action.
+
+4. [P1, reproduced] Undo commands retain row numbers across list mutations.
+   python/metatag/core/undo.py:19-21, 32-39;
+   python/metatag/ui/main_window.py:708-712, 1113-1121.
+   Removal shifts indices; opening another session replaces objects, but neither
+   clears or rebases the undo stack. Undo after removing row 0 edited the next
+   track; redo against an empty list raised IndexError: list index out of range.
+   Store stable track identities and define removal/session undo semantics,
+   or invalidate commands before those mutations. Cover commands also retain
+   detached Track objects when a session is replaced.
+
+5. [P1, reproduced] The editor can show one track while edits target another.
+   python/metatag/ui/main_window.py:1125-1128, 1160-1164, 725-727.
+   selectRow expects a proxy row, but explicit _load_track expects a source row.
+   With source titles Z,A sorted ascending, opening files selected A, displayed
+   Z, and left _current_index=1. Typing then edits A while the user sees Z.
+   Map source to proxy before selecting and use a single selection-driven load
+   path. Cover add/remove flows need the same sorted/filtered regression tests.
+
+6. [P1, reproduced] Multi-selection edits ignore the checkbox's disabled state.
+   python/metatag/ui/main_window.py:1014-1018.
+   _field_changed always takes every selected row, without checking
+   _apply_to_selected_check. Selecting two tracks with the checkbox unchecked
+   and editing artist changed both. Respect the checkbox or remove/rename it
+   if selection alone is intentionally the batch-edit contract.
+
+7. [P1, reproduced callback] Async results apply to current selection, not the
+   tracks that initiated the lookup.
+   python/metatag/ui/main_window.py:1288-1327, 1533-1554, 1753-1763,
+   1776-1814; python/metatag/online/cover_finder.py:35-45.
+   Starting a cover lookup for A, switching to B and delivering its callback
+   assigns A's art to B. MusicBrainz details, Discogs and downloaded audiobook
+   covers also resolve targets when the response arrives. Bind request IDs to
+   stable target objects; reject stale responses after navigation/session change.
+
+8. [P1, reproduced helper behavior] "Safe" file operations delete before success.
+   python/metatag/utils/file_utils.py:20-31, 44-54;
+   python/metatag/utils/rename_utils.py:91-104;
+   src/utils/file_utils.cpp:24-28, 45-48.
+   safe_move(p,p) and safe_copy(p,p) both deleted the only file and returned False.
+   Existing destinations are deleted before a failing move/copy; a rename batch
+   through rename_utils can overwrite a colliding track. Compare file identity,
+   preflight all collisions, and stage replacement before removing any original.
+   The main window's newer rename flow rejects existing destinations, so this
+   finding is about the utility APIs/native helpers, not that UI collision check.
+
+9. [P1, reproduced] Audiobook year is a string in an integer field.
+   python/metatag/online/audnexus_lookup.py:198;
+   python/metatag/ui/main_window.py:1697, 1001-1003;
+   python/metatag/core/track.py:533, 592, 659, 689.
+   "2024" is assigned directly to track.year. Display comparison and save raise
+   TypeError: '>' not supported between instances of 'str' and 'int'.
+   Parse/validate at the boundary and enforce field types in Track setters.
+
+10. [P1, source] TLS certificate failures are deliberately bypassed in production.
+    python/metatag/online/musicbrainz_lookup.py:60-71;
+    python/metatag/online/discogs_lookup.py:78-89;
+    python/metatag/online/cover_finder.py:70-81;
+    python/metatag/ui/main_window.py:1748-1751;
+    src/online/cover_finder.cpp:50-65, 117-132, 163-165;
+    src/online/musicbrainz_lookup.cpp:45-60.
+    Self-signed certificate errors are ignored without a development-only gate;
+    the duplicate native synchronous downloader ignores all errors. This permits
+    untrusted metadata/art and, in the Discogs path, token-bearing traffic to
+    proceed under an untrusted certificate. Fail closed or require an explicit,
+    scoped development trust configuration. Never disable TLS checks globally.
+
+11. [P1, source] Native code contains independent build blockers.
+    src/core/include/track.h:50-51 references TagLib::FileRef without declaring
+    namespace TagLib or including its declaration; track.cpp includes this
+    header before TagLib headers.
+    src/core/CMakeLists.txt:18-22 omits Qt6::Gui although its public header uses
+    QImage and its implementation uses QImage APIs.
+    src/online/cover_finder.cpp:109 and 155 define downloadImage(QString const&)
+    twice with different return types; only the void member is declared in
+    include/cover_finder.h:21. Return type cannot distinguish an overload.
+    src/import/csv_import.cpp:67 calls Qt5's removed QTextStream::setCodec
+    while the project requires Qt6.
+    src/utils/regex_utils.cpp:22-28 calls mutating QString::replace on a const
+    QString reference; make a mutable result copy.
+    src/utils/file_utils.cpp:76 uses QQueue without its header;
+    src/ui/mainwindow.cpp:72,96 uses QStatusBar methods without its header.
+    Fix these and run a clean full-target build, not only the UI target.
+
+12. [P1, source] Native tests cannot currently prove anything in CI.
+    CMakeLists.txt:16; tests/CMakeLists.txt:7-16;
+    tests/main.cpp:14; tests/test_track.cpp:6,143-144.
+    Qt6::Test is linked without requesting the Test component. tests/main.cpp
+    cannot see TestTrack, which is declared only in another translation unit,
+    and QTEST_MAIN(TestTrack) supplies a second main. file_utils.h is included
+    and its symbols used without linking metatag-utils. There is no add_test,
+    so ctest has no registered test even after a successful build. Resolve the
+    runner structure, dependencies and registration; CI must fail on no tests.
+
+13. [P1, source] iTunes export is not failure-safe.
+    python/metatag/import_io/itunes_sync.py:196-206;
+    python/metatag/ui/main_window.py:961-965.
+    Backup errors are logged but writing continues. Opening the original with
+    wb truncates it before plist serialization/write finishes. A write failure
+    can leave a damaged library with no backup, while the UI unconditionally
+    claims a backup was created on success. Serialize to a temporary sibling,
+    require a verified backup where promised, and atomically replace the XML.
+
+14. [P2, reproduced] iTunes round-trip cannot clear optional fields and can match
+    the wrong case-sensitive file.
+    python/metatag/import_io/itunes_sync.py:94-117, 151-160, 170-187.
+    Clearing composer/comments/year left their old XML values while export
+    returned True. Track Count/Disc Count are exported but not imported.
+    All URLs are lowercased, conflating distinct Unix paths. Canonicalize file
+    URLs with platform-aware identity; delete cleared keys; import both totals.
+    Handle localhost URLs too: file://localhost/tmp/example.mp3 currently turns
+    into //localhost/tmp/example.mp3 rather than the local /tmp path.
+
+15. [P2, reproduced] Cover optimization neither marks dirty nor preserves undo
+    image snapshots.
+    python/metatag/core/track.py:491-508;
+    python/metatag/core/undo.py:68-75;
+    python/metatag/ui/main_window.py:1445-1463.
+    A clean loaded track remained is_dirty=False after optimize_cover returned
+    True, so Save Tags skips the change. thumbnail mutates the shared PIL image
+    stored in cover undo commands and often shared across tracks. Resize a copy,
+    record an undoable change and mark the result dirty.
+
+16. [P2, reproduced] Cover failures can be reported as successful saves.
+    python/metatag/core/track.py:533-541, 718-761;
+    src/core/track.cpp:183-200, 261-277.
+    Python catches image-encoding/embedding errors inside _save_cover_art and
+    still saves/clears dirty. Injected encode failure returned True with no art.
+    Native likewise logs art failures, including unsupported WAV/AIFF art, yet
+    returns file.save success. Propagate partial failures and retain retry state.
+
+17. [P2, source] Auto-save and dirty-state lifecycle are inconsistent.
+    python/metatag/ui/main_window.py:1039-1046, 1097-1121, 1177-1186,
+    1251-1282, 1533-1558, 1591-1652; core/undo.py:25-58.
+    Only QLineEdit text changes schedule auto-save. Cover edits, undo/redo,
+    bulk operations and fetched metadata do not. Open Files clears dirty tracks
+    without save/discard confirmation; there is no closeEvent guard or pending
+    debounce flush. Disabling auto-save does not stop an already-running timer.
+    Centralize mutation/save scheduling and protect close/session replacement.
+
+18. [P2, source] Several advertised undo operations bypass the undo stack.
+    python/metatag/ui/main_window.py:888-899, 1313-1327, 1387-1389,
+    1691-1699, 1813-1826.
+    Case correction, online cover fetch, file rename, audiobook and Discogs
+    metadata mutate directly. Table dataChanged notifications are also absent
+    for several of these tag changes. Make these operations undoable, emit model
+    updates, and stop claiming full undo for file operations until it exists.
+
+19. [P2, reproduced construction] Saved Discogs credentials are not used on the
+    first search after restart.
+    python/metatag/ui/main_window.py:1788-1796, 1856-1858.
+    The newly created lookup never receives settings.discogs_token. It is set
+    only if the Settings dialog is accepted after the lookup already exists.
+    A saved dummy token remained _user_token=None at first search. Initialize
+    credentials at client creation. discogs_lookup.py:60-65 additionally places
+    credentials in query strings; use authorization headers instead.
+
+20. [P2, source] MusicBrainz track mapping is positional without a stable order.
+    python/metatag/online/musicbrainz_lookup.py:136-144;
+    python/metatag/ui/main_window.py:1535-1554.
+    selectedRows() is not explicitly sorted and successive tag changes can
+    reorder the proxy dynamically. Details flatten all discs but retain only
+    per-disc positions, so multi-disc numbering repeats with no disc field.
+    Freeze target identities/order, retain medium/disc metadata, validate counts
+    and provide a mapping preview before replacing titles.
+
+21. [P2, source] Native iTunes parsing skips normal formatted input and loses
+    locations/numeric fields.
+    src/import/itunes_sync.cpp:38-43, 85-105, 107-108, 138-140.
+    readNext is assumed to land on a start element, but pretty-printed XML emits
+    whitespace character tokens first. Numeric values in integer elements are
+    not readElementText. Location is converted with toLocalFile twice; the
+    second conversion gets an ordinary path, not a file URL, and is empty.
+    Use token-aware plist parsing and decode locations exactly once. Add real
+    formatted iTunes fixtures, not only a compact hand-built XML string.
+
+22. [P2, source] Native cover clearing is not persisted.
+    src/core/track.cpp:182-194; src/core/include/track.h:46.
+    setCoverArt(QImage()) marks dirty, but save only processes non-null art.
+    Existing embedded art survives an explicit clear. Implement per-format
+    removal and test clear/save/reload independently of metadata changes.
+
+23. [P2, reproduced] Exported HTML treats audio metadata as executable markup.
+    python/metatag/core/export/exporter.py:50-54.
+    A title containing <script>alert(1)</script> is written literally into the
+    report. Escape every tag/filename inserted into HTML and test hostile strings.
+    CSV exports at exporter.py:18-24 and import_io/csv_io.py:153-168 also need
+    a stated spreadsheet formula policy for cells starting with =,+,-,@.
+
+24. [P2, reproduced + source] Pattern validation and the actual rename engine
+    are inconsistent.
+    python/metatag/utils/patterns.py:25-42, 60-64;
+    python/metatag/ui/dialogs/pattern_dialogs.py:99-101, 141-150;
+    python/metatag/ui/main_window.py:1362-1375;
+    python/metatag/utils/rename_utils.py:43-70.
+    %artist%-%artist% raises re.error for duplicate named groups with no UI
+    validation. The active rename flow advertises %genre%/%composer% but omits
+    those values from the dict, producing empty components. Only substituted
+    values are sanitized, not literal pattern text or Windows reserved names.
+    The older tested rename engine supports a different placeholder set and is
+    not what the main window uses. Unify one engine and validate preview/apply.
+
+25. [P2, executed] Python test suite and pytest configuration are stale.
+    python/pytest.ini:1 must be [pytest], not [tool:pytest]. Inspection showed
+    configured testpaths/addopts/markers were all empty.
+    Six MainWindow failures are at test_main_window.py:143,178,253,288,309,343:
+    old QTableWidget rowCount/_append_table_row assumptions, old menu text, and
+    a cover-drop fixture that bypasses model/selection setup. These failures
+    should not be relabeled as six proven user-facing defects.
+    test_musicbrainz_lookup.py:64 expects IDs although clients emit dicts.
+    test_itunes_sync.py:93 constructs a malformed four-slash Unix URI, leading
+    to //tmp versus /tmp in the assertion at line 129.
+    Repair fixtures/contracts, then add real round-trip tests for findings 1-3
+    and model/undo tests for 4-7. Passing mock-only tests are not a safety gate.
+
+26. [P3, source] Settings expose choices that are never applied.
+    python/metatag/ui/main_window.py:346-347, 460-471, 1846-1851;
+    python/metatag/core/config.py:95-100;
+    python/metatag/ui/settings_dialog.py:223-240.
+    Field order is stored but the editor always uses _FIELD_DEFS order.
+    Max recent folders is stored but add_recent_folder hard-caps at five.
+    Restore directory is selectable but invocation is commented out. Honor the
+    options or remove them; test persistence plus visible behavior.
+
+27. [P3, source] Build/package/docs need an executable installation gate.
+    python/pyproject.toml:10,37-42; python/README.md, root README.md;
+    src/ui/CMakeLists.txt:6-12; docs/native_build.md:37.
+    Docs say Python 3.14+ while metadata allows 3.9+ and CI uses 3.12. The dev
+    extra lacks pytest-qt/pytest-mock required by the suite. Image assets live
+    outside the discovered package and have no package-data installation rule.
+    Native UI links only core and offers three fields, while online/import/utils
+    libraries are not wired into it. Document the two implementations honestly
+    and test wheel install, resources, entry points, Windows installer and the
+    actual native executable location on clean machines.
+
+28. [P2, source] Native CSV parsing does not support quoted multiline fields.
+    src/import/csv_import.cpp:113-118, 33-37, 48-51.
+    Reading one physical line at a time splits multiline comments. Removing
+    surrounding quotes after escape decoding can also strip real literal quotes.
+    Add multiline and escaped-quote fixtures and use a record-aware CSV parser.
+
+29. [P2, source] Native directory scanning can cycle through symlinks.
+    src/utils/file_utils.cpp:75-91.
+    BFS follows directory entries without a visited canonical-path set or an
+    explicit no-symlink policy. A link back to an ancestor can make scanning
+    unbounded. Add a visited set and a symlink-loop regression test.
+
+30. [P2, source] Network operations need bounds and cleanup.
+    python/metatag/online/musicbrainz_lookup.py:52-58, 73-111, 122-125;
+    python/metatag/online/cover_finder.py:35-45, 124-151;
+    python/metatag/online/audnexus_lookup.py:45-50, 60-64, 80-85;
+    python/metatag/online/discogs_lookup.py:69-76;
+    python/metatag/ui/main_window.py:1719-1773;
+    src/online/cover_finder.cpp:25,42,111;
+    src/online/musicbrainz_lookup.cpp:27.
+    Python requests have no explicit application transfer deadlines or download
+    limits. MusicBrainz search replies never call deleteLater. Cover lookup and
+    temporary network-manager children also accumulate during a long session.
+    Add timeouts/cancellation, response/image bounds, and request cleanup tests.
+    No live service reliability claim was made in this review.
+
+31. [P2, test gate] MusicBee support lacks a real-library compatibility test.
+    python/metatag/import_io/musicbee_sync.py:45-76;
+    python/metatag/tests/unit/import_io/test_musicbee_sync.py:88-152.
+    Tests supply a synthetic SQLite Tracks schema and do not verify an actual
+    MusicBee-produced library. Validate the supported input format with a real,
+    safe fixture before claiming library compatibility. Export at lines 168-177
+    is explicitly unimplemented; its function does not falsely report success.
+
+No additional confirmed logic defect in this pass: audio player, simple string
+utilities, About dialog and entry points. Device/codec behavior, UI layout,
+screen scaling and playback are still manual gates, not verified claims.
+
+Open acceptance gates
+1. Full Python suite green on the declared minimum Python version and CI's
+   Windows/Python 3.12 environment; configuration actually loaded.
+2. Real MP3/WAV/AIFF/FLAC/M4A/Vorbis/Opus fixtures: load/save/reload,
+   unrelated edit preserving all original fields, multiple artists/comments/art,
+   dates/totals, clear art, failed image decode and failed save/encoding.
+3. Sorted/filtered multi-selection: editor/selection identity, checkbox scope,
+   add/remove/open, undo/redo after each, async stale response rejection.
+4. Close/open dirty-state guard; all edit paths and undo autosave; timer disable;
+   failure retries and no partial-success messages.
+5. File same-path/hardlink/symlink cases, colliding rename batches and injected
+   copy/move/write failure with originals demonstrably preserved.
+6. iTunes real XML round-trip: local/localhost/UNC/encoded URLs, clearing fields,
+   case-sensitive paths, totals, backup failure and atomic-write failure.
+7. Clean native configure/build of every target and a nonempty ctest listing,
+   then real TagLib format round-trips and parser fixtures.
+8. Live services with verified credentials, TLS failure rejection, cancellation,
+   response ordering, rate limits and response/download bounds.
+9. Fresh wheel/installer launches with assets; manual Windows/macOS/Linux UI,
+   playback, scaling and responsiveness on a measured large library.
+
+Do not fix source during this review. Address the numbered items in priority
+order, keep metadata-preservation tests ahead of cosmetic work, and report each
+remaining unsupported feature instead of treating a partial save as success.

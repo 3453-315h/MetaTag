@@ -101,6 +101,41 @@ def test_safe_copy_destination_exists(temp_dir):
     assert dst.read_text() == "new content"
 
 
+def test_safe_move_same_file(temp_dir):
+    """Test Finding #8: safe_move(p, p) must not unlink the file."""
+    p = Path(temp_dir) / "file.txt"
+    p.write_text("precious audio content")
+
+    assert safe_move(str(p), str(p)) is True
+    assert p.exists()
+    assert p.read_text() == "precious audio content"
+
+
+def test_safe_copy_same_file(temp_dir):
+    """Test Finding #8: safe_copy(p, p) must not unlink the file."""
+    p = Path(temp_dir) / "file.txt"
+    p.write_text("precious audio content")
+
+    assert safe_copy(str(p), str(p)) is True
+    assert p.exists()
+    assert p.read_text() == "precious audio content"
+
+
+def test_safe_copy_failure_preserves_destination(mocker, temp_dir):
+    """Test Finding #8: failed copy must not destroy existing destination."""
+    src = Path(temp_dir) / "source.txt"
+    dst = Path(temp_dir) / "dest.txt"
+    src.write_text("new content")
+    dst.write_text("original content")
+
+    mocker.patch("shutil.copy2", side_effect=IOError("Disk error during copy"))
+
+    assert safe_copy(str(src), str(dst)) is False
+    assert dst.exists()
+    assert dst.read_text() == "original content"
+    assert src.exists()
+
+
 def test_safe_delete_success(temp_dir):
     """Test successful file deletion."""
     file_path = Path(temp_dir) / "test.txt"

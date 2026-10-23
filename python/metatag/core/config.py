@@ -92,12 +92,13 @@ class Settings:
         return list(stored)
 
     def add_recent_folder(self, folder: str) -> None:
-        """Prepend *folder* to the recent list, capping at _MAX_RECENT entries."""
+        """Prepend *folder* to the recent list, capping at max_recent_items entries."""
         folders = self.recent_folders()
         if folder in folders:
             folders.remove(folder)
         folders.insert(0, folder)
-        self._settings.setValue("ui/recent_folders", folders[:_MAX_RECENT])
+        limit = self.max_recent_items()
+        self._settings.setValue("ui/recent_folders", folders[:limit])
 
     def clear_recent_folders(self) -> None:
         self._settings.remove("ui/recent_folders")
@@ -134,7 +135,7 @@ class Settings:
 
     def restore_last_dir(self) -> bool:
         val = self._settings.value("core/restore_last_dir")
-        return bool(int(val)) if val is not None else True
+        return bool(int(val)) if val is not None else False
 
     def set_restore_last_dir(self, enabled: bool) -> None:
         self._settings.setValue("core/restore_last_dir", int(enabled))

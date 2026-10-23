@@ -86,10 +86,11 @@ def test_import_library_success_mocked(temp_dir):
     audio_path.write_bytes(b"fake audio")
 
     # Build mock iTunes plist
+    from metatag.import_io.itunes_sync import path_to_itunes_url
     mock_plist = {
         "Tracks": {
             "1": {
-                "Location": f"file:///{audio_path.as_posix().replace(':', ':/')}",
+                "Location": path_to_itunes_url(audio_path),
                 "Artist": "Test Artist",
                 "Album": "Test Album",
                 "Name": "Test Title",
@@ -300,6 +301,130 @@ def test_export_changes_round_trip(temp_dir):
     assert entry["Track Number"] == 3
     assert entry["Year"] == 2024
     assert entry["BPM"]  == 128
+
+
+def test_itunes_url_to_path_localhost():
+    """Convert file://localhost/... URL to Path."""
+    url = "file://localhost/Users/music/song.mp3"
+    result = itunes_url_to_path(url)
+    assert result == Path("/Users/music/song.mp3")
+
+
+def test_itunes_url_to_path_multiple_leading_slashes():
+    """Convert file:////tmp/... URL to Path normalizing redundant slashes."""
+    url = "file:////tmp/music/song.mp3"
+    result = itunes_url_to_path(url)
+    assert result == Path("/tmp/music/song.mp3")
+
+
+def test_export_changes_denied_backup(temp_dir):
+    """Test that failed backup aborts export and leaves original file untouched."""
+    xml_path = Path(temp_dir) / "iTunes Library.xml"
+    original_content = b"<plist><dict><key>Tracks</key><dict/></dict></plist>"
+    xml_path.write_bytes(original_content)
+
+    mock_track = Mock()
+    mock_track.file_path = Path(temp_dir) / "song.mp3"
+
+    with patch("shutil.copy2", side_effect=PermissionError("Permission denied")):
+        result = export_changes([mock_track], str(xml_path))
+
+    assert result is False
+    assert xml_path.read_bytes() == original_content
+    assert not (Path(temp_dir) / "iTunes Library.bak").exists()
+
+
+def test_export_changes_serialization_failure(temp_dir):
+    """Test that serialization failure leaves original and backup intact and cleans tmp files."""
+    audio_file = Path(temp_dir) / "song.mp3"
+    audio_file.write_bytes(b"data")
+    from metatag.import_io.itunes_sync import path_to_itunes_url
+
+    xml_path = Path(temp_dir) / "iTunes Library.xml"
+    plist_data = {
+        "Tracks": {
+            "1": {
+                "Location": path_to_itunes_url(audio_file),
+                "Name": "Original Title",
+            }
+        }
+    }
+    with open(xml_path, "wb") as fh:
+        plistlib.dump(plist_data, fh, fmt=plistlib.FMT_XML)
+
+    original_bytes = xml_path.read_bytes()
+
+    mock_track = Mock()
+    mock_track.file_path = audio_file
+    mock_track.title = "New Title"
+    mock_track.artist = ""
+    mock_track.album = ""
+    mock_track.genre = ""
+    mock_track.composer = ""
+    mock_track.grouping = ""
+    mock_track.comment = ""
+    mock_track.track_number = 0
+    mock_track.track_total = 0
+    mock_track.disc_number = 0
+    mock_track.disc_total = 0
+    mock_track.year = 0
+    mock_track.bpm = 0
+
+    with patch("plistlib.dump", side_effect=RuntimeError("Serialization error")):
+        result = export_changes([mock_track], str(xml_path))
+
+    assert result is False
+    # Original is untouched
+    assert xml_path.read_bytes() == original_bytes
+    # Backup was created and is intact
+    assert (Path(temp_dir) / "iTunes Library.bak").exists()
+    # No temporary files left behind
+    assert len(list(Path(temp_dir).glob("*.tmp"))) == 0
+
+
+def test_export_changes_replacement_failure(temp_dir):
+    """Test that atomic replacement failure leaves original intact and cleans tmp files."""
+    audio_file = Path(temp_dir) / "song.mp3"
+    audio_file.write_bytes(b"data")
+    from metatag.import_io.itunes_sync import path_to_itunes_url
+
+    xml_path = Path(temp_dir) / "iTunes Library.xml"
+    plist_data = {
+        "Tracks": {
+            "1": {
+                "Location": path_to_itunes_url(audio_file),
+                "Name": "Original Title",
+            }
+        }
+    }
+    with open(xml_path, "wb") as fh:
+        plistlib.dump(plist_data, fh, fmt=plistlib.FMT_XML)
+
+    original_bytes = xml_path.read_bytes()
+
+    mock_track = Mock()
+    mock_track.file_path = audio_file
+    mock_track.title = "New Title"
+    mock_track.artist = ""
+    mock_track.album = ""
+    mock_track.genre = ""
+    mock_track.composer = ""
+    mock_track.grouping = ""
+    mock_track.comment = ""
+    mock_track.track_number = 0
+    mock_track.track_total = 0
+    mock_track.disc_number = 0
+    mock_track.disc_total = 0
+    mock_track.year = 0
+    mock_track.bpm = 0
+
+    with patch("os.replace", side_effect=OSError("Replace failed")):
+        result = export_changes([mock_track], str(xml_path))
+
+    assert result is False
+    assert xml_path.read_bytes() == original_bytes
+    assert (Path(temp_dir) / "iTunes Library.bak").exists()
+    assert len(list(Path(temp_dir).glob("*.tmp"))) == 0
 
 
 if __name__ == "__main__":

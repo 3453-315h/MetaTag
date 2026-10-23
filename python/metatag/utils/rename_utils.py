@@ -87,6 +87,11 @@ def rename_track(
     # Nothing to do if source == destination
     if dest_path == track.file_path:
         return True
+    try:
+        if track.file_path.exists() and dest_path.exists() and track.file_path.samefile(dest_path):
+            return True
+    except OSError:
+        pass
 
     if file_utils.safe_move(str(track.file_path), str(dest_path)):
         # FIX: use public update_path() instead of touching _file_path directly
@@ -100,5 +105,26 @@ def rename_tracks(
     pattern: str,
     base_dir: Optional[Union[str, Path]] = None,
 ) -> dict[int, bool]:
-    """Rename multiple tracks; returns {index: success} mapping."""
-    return {i: rename_track(track, pattern, base_dir) for i, track in enumerate(tracks)}
+    """Rename multiple tracks with collision preflight; returns {index: success} mapping."""
+    planned: dict[int, Path] = {}
+    dest_counts: dict[Path, int] = {}
+    for i, track in enumerate(tracks):
+        name = generate_filename(track, pattern)
+        if not name:
+            continue
+        p = (Path(base_dir) if base_dir is not None else Path(track.file_path).parent) / name
+        planned[i] = p
+        dest_counts[p] = dest_counts.get(p, 0) + 1
+
+    results: dict[int, bool] = {}
+    for i, track in enumerate(tracks):
+        if i not in planned:
+            results[i] = False
+            continue
+        dest = planned[i]
+        if dest_counts[dest] > 1:
+            results[i] = False
+            continue
+        results[i] = rename_track(track, pattern, base_dir)
+
+    return results

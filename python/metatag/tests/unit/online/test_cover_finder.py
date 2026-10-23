@@ -230,5 +230,29 @@ def test_qimage_to_pil(finder):
     assert pil_image.mode == "RGBA" or pil_image.mode == "RGB"
 
 
+def test_handle_ssl_errors_does_not_ignore(finder):
+    """Test _handle_ssl_errors does not call ignoreSslErrors and emits fetch_error."""
+    mock_sender = Mock()
+    mock_sender.ignoreSslErrors = Mock()
+
+    from PySide6.QtNetwork import QSslError
+    mock_error = Mock(spec=QSslError)
+    mock_error.errorString.return_value = "Self-signed certificate in chain"
+
+    captured_errors = []
+    captured_covers = []
+    finder.fetch_error.connect(captured_errors.append)
+    finder.cover_fetched.connect(captured_covers.append)
+
+    with patch.object(finder, "sender", return_value=mock_sender):
+        finder._handle_ssl_errors([mock_error])
+
+        mock_sender.ignoreSslErrors.assert_not_called()
+        assert len(captured_errors) == 1
+        assert "SSL certificate validation failed" in captured_errors[0]
+        assert "Self-signed" in captured_errors[0]
+        assert len(captured_covers) == 0
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

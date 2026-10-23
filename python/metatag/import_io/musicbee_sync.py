@@ -44,9 +44,18 @@ def map_columns(column_names: List[str]) -> Dict[str, int]:
 
 def import_library(db_path: str) -> List[Track]:
     """Import tracks from MusicBee SQLite library."""
+    p = Path(db_path)
+    if not p.is_file():
+        logger.error(f"MusicBee library file not found: {db_path}")
+        return []
+
     tracks = []
+    conn = None
     try:
-        conn = sqlite3.connect(db_path)
+        try:
+            conn = sqlite3.connect(f"file:{p.resolve().as_posix()}?mode=ro", uri=True)
+        except sqlite3.OperationalError:
+            conn = sqlite3.connect(str(p))
         cursor = conn.cursor()
     except Exception as e:
         logger.error(f"Failed to connect to MusicBee database: {e}")
@@ -159,7 +168,8 @@ def import_library(db_path: str) -> List[Track]:
         logger.error(f"Error reading MusicBee library: {e}")
         return []
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
     logger.info(f"Imported {len(tracks)} tracks from MusicBee library")
     return tracks

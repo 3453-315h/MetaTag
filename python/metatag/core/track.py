@@ -3,7 +3,7 @@
 import io
 import os
 from pathlib import Path
-from typing import Optional, Union
+from typing import Any, Optional, Union
 
 import mutagen
 from mutagen.id3 import (
@@ -79,6 +79,8 @@ class Track:
         self._loaded = False
         self._dirty = False
         self._mutagen_file = None
+        self._modified_fields: set[str] = set()
+        self._cover_art_modified: bool = False
 
     # ------------------------------------------------------------------ #
     # Properties
@@ -92,14 +94,33 @@ class Track:
         """Update the file path after a rename (avoids private-attr access)."""
         self._file_path = Path(new_path)
 
+    @staticmethod
+    def _to_int(value: Any) -> int:
+        """Coerce strings, ints or floats safely to integer."""
+        if isinstance(value, int):
+            return value
+        if isinstance(value, str):
+            clean = value.strip().split("/")[0].strip()
+            clean = clean[:4] if len(clean) >= 4 and clean[:4].isdigit() else clean
+            try:
+                return int(clean) if clean else 0
+            except ValueError:
+                return 0
+        try:
+            return int(value)
+        except (ValueError, TypeError):
+            return 0
+
     @property
     def artist(self) -> str:
         return self._artist
 
     @artist.setter
     def artist(self, value: str) -> None:
-        if self._artist != value:
-            self._artist = value
+        val_str = str(value) if value is not None else ""
+        if self._artist != val_str:
+            self._artist = val_str
+            self._modified_fields.add("artist")
             self._dirty = True
 
     @property
@@ -108,8 +129,10 @@ class Track:
 
     @album.setter
     def album(self, value: str) -> None:
-        if self._album != value:
-            self._album = value
+        val_str = str(value) if value is not None else ""
+        if self._album != val_str:
+            self._album = val_str
+            self._modified_fields.add("album")
             self._dirty = True
 
     @property
@@ -118,8 +141,10 @@ class Track:
 
     @title.setter
     def title(self, value: str) -> None:
-        if self._title != value:
-            self._title = value
+        val_str = str(value) if value is not None else ""
+        if self._title != val_str:
+            self._title = val_str
+            self._modified_fields.add("title")
             self._dirty = True
 
     @property
@@ -128,8 +153,10 @@ class Track:
 
     @track_number.setter
     def track_number(self, value: int) -> None:
-        if self._track_number != value:
-            self._track_number = value
+        val_int = self._to_int(value)
+        if self._track_number != val_int:
+            self._track_number = val_int
+            self._modified_fields.add("track_number")
             self._dirty = True
 
     @property
@@ -138,8 +165,10 @@ class Track:
 
     @track_total.setter
     def track_total(self, value: int) -> None:
-        if self._track_total != value:
-            self._track_total = value
+        val_int = self._to_int(value)
+        if self._track_total != val_int:
+            self._track_total = val_int
+            self._modified_fields.add("track_total")
             self._dirty = True
 
     @property
@@ -148,8 +177,10 @@ class Track:
 
     @disc_number.setter
     def disc_number(self, value: int) -> None:
-        if self._disc_number != value:
-            self._disc_number = value
+        val_int = self._to_int(value)
+        if self._disc_number != val_int:
+            self._disc_number = val_int
+            self._modified_fields.add("disc_number")
             self._dirty = True
 
     @property
@@ -158,8 +189,10 @@ class Track:
 
     @disc_total.setter
     def disc_total(self, value: int) -> None:
-        if self._disc_total != value:
-            self._disc_total = value
+        val_int = self._to_int(value)
+        if self._disc_total != val_int:
+            self._disc_total = val_int
+            self._modified_fields.add("disc_total")
             self._dirty = True
 
     @property
@@ -168,8 +201,10 @@ class Track:
 
     @genre.setter
     def genre(self, value: str) -> None:
-        if self._genre != value:
-            self._genre = value
+        val_str = str(value) if value is not None else ""
+        if self._genre != val_str:
+            self._genre = val_str
+            self._modified_fields.add("genre")
             self._dirty = True
 
     @property
@@ -178,8 +213,10 @@ class Track:
 
     @year.setter
     def year(self, value: int) -> None:
-        if self._year != value:
-            self._year = value
+        val_int = self._to_int(value)
+        if self._year != val_int:
+            self._year = val_int
+            self._modified_fields.add("year")
             self._dirty = True
 
     @property
@@ -188,8 +225,10 @@ class Track:
 
     @comment.setter
     def comment(self, value: str) -> None:
-        if self._comment != value:
-            self._comment = value
+        val_str = str(value) if value is not None else ""
+        if self._comment != val_str:
+            self._comment = val_str
+            self._modified_fields.add("comment")
             self._dirty = True
 
     @property
@@ -198,8 +237,10 @@ class Track:
 
     @composer.setter
     def composer(self, value: str) -> None:
-        if self._composer != value:
-            self._composer = value
+        val_str = str(value) if value is not None else ""
+        if self._composer != val_str:
+            self._composer = val_str
+            self._modified_fields.add("composer")
             self._dirty = True
 
     @property
@@ -208,8 +249,10 @@ class Track:
 
     @grouping.setter
     def grouping(self, value: str) -> None:
-        if self._grouping != value:
-            self._grouping = value
+        val_str = str(value) if value is not None else ""
+        if self._grouping != val_str:
+            self._grouping = val_str
+            self._modified_fields.add("grouping")
             self._dirty = True
 
     @property
@@ -218,8 +261,10 @@ class Track:
 
     @bpm.setter
     def bpm(self, value: int) -> None:
-        if self._bpm != value:
-            self._bpm = value
+        val_int = self._to_int(value)
+        if self._bpm != val_int:
+            self._bpm = val_int
+            self._modified_fields.add("bpm")
             self._dirty = True
 
     @property
@@ -229,6 +274,7 @@ class Track:
     @cover_art.setter
     def cover_art(self, value: Optional[Image.Image]) -> None:
         self._cover_art = value
+        self._cover_art_modified = True
         self._dirty = True
 
     @property
@@ -304,6 +350,37 @@ class Track:
 
                 self._comment = easy.get("comment", [""])[0]
 
+            # Raw ID3 override for MP3 comments and WAV/AIFF ID3 tags
+            id3 = self._get_id3_tags()
+            if id3 is not None:
+                if "TIT2" in id3 and id3["TIT2"].text:
+                    self._title = str(id3["TIT2"].text[0])
+                if "TPE1" in id3 and id3["TPE1"].text:
+                    self._artist = str(id3["TPE1"].text[0])
+                if "TALB" in id3 and id3["TALB"].text:
+                    self._album = str(id3["TALB"].text[0])
+                if "TCON" in id3 and id3["TCON"].text:
+                    self._genre = str(id3["TCON"].text[0])
+                if "TRCK" in id3 and id3["TRCK"].text:
+                    self._track_number, self._track_total = self._parse_num_total(str(id3["TRCK"].text[0]))
+
+                date_str = ""
+                if "TDRC" in id3 and id3["TDRC"].text:
+                    date_str = str(id3["TDRC"].text[0])
+                elif "TYER" in id3 and id3["TYER"].text:
+                    date_str = str(id3["TYER"].text[0])
+                if date_str:
+                    year_part = date_str[:4]
+                    if year_part.isdigit():
+                        self._year = int(year_part)
+
+                comm_frames = id3.getall("COMM")
+                if comm_frames:
+                    for c in comm_frames:
+                        if c.text:
+                            self._comment = str(c.text[0])
+                            break
+
             # Additional fields whose easy-interface support is inconsistent
             self._load_additional_fields()
 
@@ -316,6 +393,8 @@ class Track:
 
             self._loaded = True
             self._dirty = False
+            self._modified_fields.clear()
+            self._cover_art_modified = False
             return True
 
         except Exception as e:
@@ -503,8 +582,10 @@ class Track:
         
         # Strip metadata by creating a new image
         new_img = Image.new(img.mode, img.size)
-        new_img.putdata(img.getdata())
+        new_img.paste(img)
         self._cover_art = new_img
+        self._cover_art_modified = True
+        self._dirty = True
         return True
 
     def save(self, preserve_timestamps: bool = False) -> bool:
@@ -531,7 +612,8 @@ class Track:
                 self._mutagen_file.add_tags()
 
             self._save_all_fields()
-            self._save_cover_art()
+            if self._cover_art_modified:
+                self._save_cover_art()
             self._mutagen_file.save()
 
             # Restore original timestamps
@@ -539,6 +621,8 @@ class Track:
                 os.utime(self._file_path, (atime, mtime))
 
             self._dirty = False
+            self._modified_fields.clear()
+            self._cover_art_modified = False
             return True
 
         except Exception as e:
@@ -577,140 +661,183 @@ class Track:
             self._save_vorbis_fields(track_str, disc_str)
 
     def _save_id3_fields(self, id3: ID3, track_str: str, disc_str: str) -> None:
-        """Write metadata to an ID3 tag container."""
-        id3.add(TPE1(encoding=3, text=[self._artist]))
-        id3.add(TALB(encoding=3, text=[self._album]))
-        id3.add(TIT2(encoding=3, text=[self._title]))
+        """Write metadata to an ID3 tag container, updating only touched fields."""
+        mods = self._modified_fields
+        all_fields = len(mods) == 0
 
-        if track_str:
-            id3.add(TRCK(encoding=3, text=[track_str]))
-        elif "TRCK" in id3:
-            del id3["TRCK"]
+        if all_fields or "artist" in mods:
+            id3.add(TPE1(encoding=3, text=[self._artist]))
+        if all_fields or "album" in mods:
+            id3.add(TALB(encoding=3, text=[self._album]))
+        if all_fields or "title" in mods:
+            id3.add(TIT2(encoding=3, text=[self._title]))
 
-        id3.add(TCON(encoding=3, text=[self._genre]))
+        if all_fields or "track_number" in mods or "track_total" in mods:
+            if track_str:
+                id3.add(TRCK(encoding=3, text=[track_str]))
+            elif "TRCK" in id3:
+                del id3["TRCK"]
 
-        if self._year > 0:
-            id3.add(TDRC(encoding=3, text=[str(self._year)]))
-        elif "TDRC" in id3:
-            del id3["TDRC"]
+        if all_fields or "genre" in mods:
+            id3.add(TCON(encoding=3, text=[self._genre]))
 
-        id3.delall("COMM")
-        if self._comment:
-            id3.add(COMM(encoding=3, lang="eng", desc="", text=[self._comment]))
+        if all_fields or "year" in mods:
+            if self._year > 0:
+                id3.add(TDRC(encoding=3, text=[str(self._year)]))
+            elif "TDRC" in id3:
+                del id3["TDRC"]
 
-        if self._composer:
-            id3.add(TCOM(encoding=3, text=[self._composer]))
-        elif "TCOM" in id3:
-            del id3["TCOM"]
+        if all_fields or "comment" in mods:
+            id3.delall("COMM")
+            if self._comment:
+                id3.add(COMM(encoding=3, lang="eng", desc="", text=[self._comment]))
+
+        if all_fields or "composer" in mods:
+            if self._composer:
+                id3.add(TCOM(encoding=3, text=[self._composer]))
+            elif "TCOM" in id3:
+                del id3["TCOM"]
 
         # TIT1 = "Content group description" (not TXXX)
-        if self._grouping:
-            id3.add(TIT1(encoding=3, text=[self._grouping]))
-        elif "TIT1" in id3:
-            del id3["TIT1"]
+        if all_fields or "grouping" in mods:
+            if self._grouping:
+                id3.add(TIT1(encoding=3, text=[self._grouping]))
+            elif "TIT1" in id3:
+                del id3["TIT1"]
 
         # TBPM = BPM frame (not TXXX)
-        if self._bpm > 0:
-            id3.add(TBPM(encoding=3, text=[str(self._bpm)]))
-        elif "TBPM" in id3:
-            del id3["TBPM"]
+        if all_fields or "bpm" in mods:
+            if self._bpm > 0:
+                id3.add(TBPM(encoding=3, text=[str(self._bpm)]))
+            elif "TBPM" in id3:
+                del id3["TBPM"]
 
-        if disc_str:
-            id3.add(TPOS(encoding=3, text=[disc_str]))
-        elif "TPOS" in id3:
-            del id3["TPOS"]
+        if all_fields or "disc_number" in mods or "disc_total" in mods:
+            if disc_str:
+                id3.add(TPOS(encoding=3, text=[disc_str]))
+            elif "TPOS" in id3:
+                del id3["TPOS"]
 
     def _save_vorbis_fields(self, track_str: str, disc_str: str) -> None:
-        """Write metadata to a VorbisComment container (shared by FLAC + Ogg*).
-
-        FIX #15: previously FLAC and Ogg each had ~30 identical lines.
-        """
+        """Write metadata to a VorbisComment container (shared by FLAC + Ogg*)."""
         f = self._mutagen_file
+        mods = self._modified_fields
+        all_fields = len(mods) == 0
 
-        # Core fields — always written (empty string clears them)
-        f["artist"] = [self._artist]
-        f["album"]  = [self._album]
-        f["title"]  = [self._title]
-        f["genre"]  = [self._genre]
+        # Core fields — only written if modified or all
+        if all_fields or "artist" in mods:
+            f["artist"] = [self._artist]
+        if all_fields or "album" in mods:
+            f["album"] = [self._album]
+        if all_fields or "title" in mods:
+            f["title"] = [self._title]
+        if all_fields or "genre" in mods:
+            f["genre"] = [self._genre]
 
-        # Optional string fields using the VorbisComment dispatch table
-        _str_fields: dict[str, str | int] = {
-            "composer": self._composer,
-            "grouping": self._grouping,
-        }
-        for comment_key, value in _str_fields.items():
-            if value:
-                f[comment_key] = [str(value)]
-            elif comment_key in f:
-                del f[comment_key]
+        if all_fields or "composer" in mods:
+            if self._composer:
+                f["composer"] = [str(self._composer)]
+            elif "composer" in f:
+                del f["composer"]
 
-        # Track/disc X/Y strings
-        if track_str:
-            f["tracknumber"] = [track_str]
-        elif "tracknumber" in f:
-            del f["tracknumber"]
+        if all_fields or "grouping" in mods:
+            if self._grouping:
+                f["grouping"] = [str(self._grouping)]
+            elif "grouping" in f:
+                del f["grouping"]
 
-        if disc_str:
-            f["discnumber"] = [disc_str]
-        elif "discnumber" in f:
-            del f["discnumber"]
+        if all_fields or "track_number" in mods or "track_total" in mods:
+            if track_str:
+                f["tracknumber"] = [track_str]
+            elif "tracknumber" in f:
+                del f["tracknumber"]
 
-        # Year
-        if self._year > 0:
-            f["date"] = [str(self._year)]
-        elif "date" in f:
-            del f["date"]
+        if all_fields or "disc_number" in mods or "disc_total" in mods:
+            if disc_str:
+                f["discnumber"] = [disc_str]
+            elif "discnumber" in f:
+                del f["discnumber"]
 
-        # Comment
-        if self._comment:
-            f["comment"] = [self._comment]
-        elif "comment" in f:
-            del f["comment"]
+        if all_fields or "year" in mods:
+            if self._year > 0:
+                f["date"] = [str(self._year)]
+            elif "date" in f:
+                del f["date"]
 
-        # BPM
-        if self._bpm > 0:
-            f["bpm"] = [str(self._bpm)]
-        elif "bpm" in f:
-            del f["bpm"]
+        if all_fields or "comment" in mods:
+            if self._comment:
+                f["comment"] = [self._comment]
+            elif "comment" in f:
+                del f["comment"]
+
+        if all_fields or "bpm" in mods:
+            if self._bpm > 0:
+                f["bpm"] = [str(self._bpm)]
+            elif "bpm" in f:
+                del f["bpm"]
 
     def _save_mp4_fields(self, track_str: str, disc_str: str) -> None:
-        """Write metadata to an MP4/M4A tag container."""
+        """Write metadata to an MP4/M4A tag container, updating only touched fields."""
         f = self._mutagen_file
+        mods = self._modified_fields
+        all_fields = len(mods) == 0
 
-        f["\xa9ART"] = [self._artist]
-        f["\xa9alb"] = [self._album]
-        f["\xa9nam"] = [self._title]
-        f["\xa9gen"] = [self._genre]
+        if all_fields or "artist" in mods:
+            f["\xa9ART"] = [self._artist]
+        if all_fields or "album" in mods:
+            f["\xa9alb"] = [self._album]
+        if all_fields or "title" in mods:
+            f["\xa9nam"] = [self._title]
+        if all_fields or "genre" in mods:
+            f["\xa9gen"] = [self._genre]
 
-        # trkn / disk are stored as lists of (number, total) tuples
-        f["trkn"] = [(self._track_number or 0, self._track_total or 0)]
+        if all_fields or "composer" in mods:
+            if self._composer:
+                f["\xa9wrt"] = [self._composer]
+            elif "\xa9wrt" in f:
+                del f["\xa9wrt"]
 
-        optional_str = {
-            "\xa9day": str(self._year) if self._year > 0 else "",
-            "\xa9cmt": self._comment,
-            "\xa9wrt": self._composer,   # standard Apple composer atom
-            "\xa9grp": self._grouping,
-        }
-        for atom, value in optional_str.items():
-            if value:
-                f[atom] = [value]
-            elif atom in f:
-                del f[atom]
+        if all_fields or "grouping" in mods:
+            if self._grouping:
+                f["\xa9grp"] = [self._grouping]
+            elif "\xa9grp" in f:
+                del f["\xa9grp"]
 
-        # BPM stored as int, not string
-        if self._bpm > 0:
-            f["tmpo"] = [self._bpm]
-        elif "tmpo" in f:
-            del f["tmpo"]
+        if all_fields or "bpm" in mods:
+            if self._bpm > 0:
+                f["tmpo"] = [self._bpm]
+            elif "tmpo" in f:
+                del f["tmpo"]
 
-        # Disc number
-        if self._disc_number > 0 or self._disc_total > 0:
-            f["disk"] = [(self._disc_number or 0, self._disc_total or 0)]
-        elif "disk" in f:
-            del f["disk"]
+        if all_fields or "comment" in mods:
+            if self._comment:
+                f["\xa9cmt"] = [self._comment]
+            elif "\xa9cmt" in f:
+                del f["\xa9cmt"]
+
+        if all_fields or "year" in mods:
+            if self._year > 0:
+                f["\xa9day"] = [str(self._year)]
+            elif "\xa9day" in f:
+                del f["\xa9day"]
+
+        if all_fields or "track_number" in mods or "track_total" in mods:
+            if self._track_number > 0 or self._track_total > 0:
+                f["trkn"] = [(self._track_number or 0, self._track_total or 0)]
+            elif "trkn" in f:
+                del f["trkn"]
+
+        if all_fields or "disc_number" in mods or "disc_total" in mods:
+            if self._disc_number > 0 or self._disc_total > 0:
+                f["disk"] = [(self._disc_number or 0, self._disc_total or 0)]
+            elif "disk" in f:
+                del f["disk"]
 
     def _save_cover_art(self) -> None:
-        """Embed cover art into file."""
+        """Embed cover art into file, preserving non-front pictures."""
+        if not getattr(self, "_cover_art_modified", False):
+            return
+
         if self._cover_art is None:
             self._remove_cover_art()
             return
@@ -722,7 +849,10 @@ class Track:
 
             id3 = self._get_id3_tags()
             if id3 is not None:
+                non_front = [f for f in id3.getall("APIC") if f.type != 3]
                 id3.delall("APIC")
+                for f in non_front:
+                    id3.add(f)
                 id3.add(
                     APIC(
                         encoding=3,
@@ -735,7 +865,10 @@ class Track:
                 return
 
             if isinstance(self._mutagen_file, FLAC):
+                non_front = [p for p in self._mutagen_file.pictures if p.type != 3]
                 self._mutagen_file.clear_pictures()
+                for p in non_front:
+                    self._mutagen_file.add_picture(p)
                 pic = Picture()
                 pic.type = 3
                 pic.mime = "image/png"
@@ -759,16 +892,23 @@ class Track:
 
         except Exception as e:
             logger.error(f"Failed to save cover art: {e}")
+            raise
 
     def _remove_cover_art(self) -> None:
-        """Remove existing cover art from the loaded mutagen file."""
+        """Remove front cover art from the loaded mutagen file, preserving other pictures."""
         try:
             id3 = self._get_id3_tags()
             if id3 is not None:
+                non_front = [f for f in id3.getall("APIC") if f.type != 3]
                 id3.delall("APIC")
+                for f in non_front:
+                    id3.add(f)
                 return
             if isinstance(self._mutagen_file, FLAC):
+                non_front = [p for p in self._mutagen_file.pictures if p.type != 3]
                 self._mutagen_file.clear_pictures()
+                for p in non_front:
+                    self._mutagen_file.add_picture(p)
                 return
             if isinstance(self._mutagen_file, MP4) and "covr" in self._mutagen_file:
                 del self._mutagen_file["covr"]
@@ -776,5 +916,6 @@ class Track:
             if isinstance(self._mutagen_file, (OggVorbis, OggOpus)):
                 if "metadata_block_picture" in self._mutagen_file:
                     del self._mutagen_file["metadata_block_picture"]
-        except (ValueError, TypeError):
-            pass
+        except (ValueError, TypeError) as e:
+            logger.error(f"Failed to remove cover art: {e}")
+            raise

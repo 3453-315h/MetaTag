@@ -53,27 +53,23 @@ class MusicBrainzLookup(QObject):
         request.setRawHeader(b"User-Agent", b"MetaTag/1.0 (https://github.com/metatag)")
         request.setRawHeader(b"Accept", b"application/json")
 
+        self._last_ssl_error = None
         reply = self._nam.get(request)
         reply.sslErrors.connect(self._handle_ssl_errors)
         reply.finished.connect(lambda: self._handle_reply_finished(reply))
 
     def _handle_ssl_errors(self, errors: List[QSslError]) -> None:
-        """Handle SSL errors, ignore self-signed certificates."""
-        ignorable = []
-        for error in errors:
-            if error.error() in (
-                QSslError.SslError.SelfSignedCertificate,
-                QSslError.SslError.SelfSignedCertificateInChain,
-            ):
-                ignorable.append(error)
-        if len(ignorable) == len(errors):
-            # All errors are ignorable
-            self.sender().ignoreSslErrors(ignorable)
+        """Handle SSL errors by reporting them visibly without ignoring certificates."""
+        err_msgs = [e.errorString() for e in errors]
+        self._last_ssl_error = f"SSL certificate validation failed: {'; '.join(err_msgs)}"
+        self.lookup_error.emit(self._last_ssl_error)
 
     def _handle_reply_finished(self, reply: QNetworkReply) -> None:
         """Handle finished network reply."""
         try:
             if reply.error() != QNetworkReply.NetworkError.NoError:
+                if getattr(self, "_last_ssl_error", None):
+                    return
                 self.lookup_error.emit(reply.errorString())
                 return
 
@@ -109,6 +105,8 @@ class MusicBrainzLookup(QObject):
             self.lookup_error.emit(f"Failed to parse MusicBrainz JSON: {e}")
         except Exception as e:
             self.lookup_error.emit(f"Unexpected error: {e}")
+        finally:
+            reply.deleteLater()
 
     def fetch_release_details(self, release_id: str) -> None:
         """Fetch detailed information (tracklist) for a specific release."""
@@ -121,26 +119,38 @@ class MusicBrainzLookup(QObject):
 
         request = QNetworkRequest(url)
         request.setRawHeader(b"User-Agent", b"MetaTag/1.0 (https://github.com/metatag)")
+        self._last_ssl_error = None
         reply = self._nam.get(request)
+        reply.sslErrors.connect(self._handle_ssl_errors)
         reply.finished.connect(lambda: self._handle_details_reply(reply))
 
     def _handle_details_reply(self, reply: QNetworkReply) -> None:
         """Parse the detailed release JSON."""
         try:
             if reply.error() != QNetworkReply.NetworkError.NoError:
+                if getattr(self, "_last_ssl_error", None):
+                    return
                 self.lookup_error.emit(reply.errorString())
                 return
             
             data = json.loads(reply.readAll().data())
+            media = data.get("media", [])
+            disc_total = len(media)
             tracks = []
-            for medium in data.get("media", []):
-                for track in medium.get("tracks", []):
+            for medium in media:
+                disc_num = medium.get("position", 1)
+                med_tracks = medium.get("tracks", [])
+                track_total = len(med_tracks)
+                for track in med_tracks:
                     # FIX: guard empty artist-credit before [0] access
                     t_credits = track.get("artist-credit") or []
                     tracks.append({
-                        "title":  track.get("title", ""),
-                        "artist": t_credits[0].get("name", "") if t_credits else "",
-                        "number": track.get("position", ""),
+                        "title":        track.get("title", ""),
+                        "artist":       t_credits[0].get("name", "") if t_credits else "",
+                        "number":       track.get("position", ""),
+                        "track_total":  track_total,
+                        "disc_number":  disc_num,
+                        "disc_total":   disc_total,
                     })
 
             # FIX: guard release-level artist-credit before [0] access

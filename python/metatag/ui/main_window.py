@@ -32,7 +32,7 @@ from PySide6.QtWidgets import (
     QSplashScreen,
     QTableView,
 )
-from PySide6.QtCore import Qt, Signal, Slot, QTimer, QPoint, QSortFilterProxyModel, QUrl, QMimeData
+from PySide6.QtCore import Qt, Signal, Slot, QTimer, QPoint, QSortFilterProxyModel, QUrl, QMimeData, QThread
 from PySide6.QtGui import (
     QAction,
     QPixmap,
@@ -259,6 +259,58 @@ class CoverArtLabel(QLabel):
             self._show_placeholder()
 
 
+class TrackLoaderWorker(QThread):
+    """Background worker for asynchronous track loading with bounded concurrency."""
+
+    track_loaded = Signal(int, int)        # session_id, row
+    finished_loading = Signal(int, int)    # session_id, total_loaded
+
+    def __init__(self, session_id: int, items: List[tuple[int, Track]], parent=None):
+        super().__init__(parent)
+        self.session_id = session_id
+        self.items = items
+        self._cancelled = False
+
+    def cancel(self) -> None:
+        self._cancelled = True
+
+    def is_cancelled(self) -> bool:
+        return self._cancelled
+
+    def run(self) -> None:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        max_workers = min(4, os.cpu_count() or 4)
+        loaded = 0
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_item = {
+                executor.submit(self._load_item, row, track): (row, track)
+                for row, track in self.items
+            }
+            for future in as_completed(future_to_item):
+                if self._cancelled:
+                    executor.shutdown(wait=False, cancel_futures=True)
+                    break
+                row, track = future_to_item[future]
+                try:
+                    success = future.result()
+                    if success and not self._cancelled:
+                        loaded += 1
+                        self.track_loaded.emit(self.session_id, row)
+                except Exception:
+                    pass
+
+        if not self._cancelled:
+            self.finished_loading.emit(self.session_id, loaded)
+
+    def _load_item(self, row: int, track: Track) -> bool:
+        if self._cancelled:
+            return False
+        if not track.is_loaded:
+            return track.load()
+        return True
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Main window
 # ─────────────────────────────────────────────────────────────────────────────
@@ -303,6 +355,8 @@ class MainWindow(QMainWindow):
         self._discogs_lookup = None
         self._mb_lookup = None
         self._settings = Settings()
+        self._session_id = 0
+        self._active_loader: Optional[TrackLoaderWorker] = None
         # Undo system
         self._undo_stack = QUndoStack(self)
         # Model/View system
@@ -339,12 +393,13 @@ class MainWindow(QMainWindow):
         self._auto_save_timer.setSingleShot(True)
         self._auto_save_timer.setInterval(self._settings.auto_save_interval())  # Use setting
         self._auto_save_timer.timeout.connect(self._save_tags)
+        self._undo_stack.indexChanged.connect(lambda _: self._schedule_auto_save())
 
         self._setup_ui()
         self._connect_signals()
         
-        # Restore last directory if enabled (Disabled per user request)
-        # QTimer.singleShot(0, self._restore_session)
+        # Restore last directory if enabled
+        QTimer.singleShot(0, self._restore_session)
 
     def _restore_session(self) -> None:
         if self._settings.restore_last_dir():
@@ -456,23 +511,20 @@ class MainWindow(QMainWindow):
         form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
         form.setSpacing(6)
         form.setContentsMargins(8, 4, 8, 4)
+        self._tag_form = form
 
-        visible_fields = self._settings.visible_fields()
         for field_key, label_text, attr_name, placeholder in self._FIELD_DEFS:
             label = QLabel(label_text)
             edit = QLineEdit()
             if placeholder:
                 edit.setPlaceholderText(placeholder)
-            form.addRow(label, edit)
             self._field_widgets[field_key] = (label, edit)
             setattr(self, attr_name, edit)
-            visible = field_key in visible_fields
-            label.setVisible(visible)
-            edit.setVisible(visible)
 
         # "Apply to selected" checkbox
         self._apply_to_selected_check = QCheckBox("Apply to selected tracks")
-        form.addRow("", self._apply_to_selected_check)
+
+        self._apply_field_layout()
 
         scroll.setWidget(scroll_contents)
         tag_outer.addWidget(scroll)
@@ -688,6 +740,27 @@ class MainWindow(QMainWindow):
         self._audio_player.load_track(track.file_path)
         self._update_nav_label()
 
+    def _select_source_row(self, source_row: int) -> None:
+        """Select a source row in the view by mapping through the proxy model."""
+        if not (0 <= source_row < len(self._tracks)):
+            return
+        src_idx = self._track_model.index(source_row, 0)
+        proxy_idx = self._proxy_model.mapFromSource(src_idx)
+        if proxy_idx.isValid():
+            self._file_list.clearSelection()
+            self._file_list.selectRow(proxy_idx.row())
+            if self._current_index != source_row:
+                self._current_index = source_row
+                self._load_track(source_row)
+                self._audio_player.load_track(self._tracks[source_row].file_path)
+                self._update_nav_label()
+        else:
+            self._current_index = source_row
+            self._load_track(source_row)
+            self._audio_player.load_track(self._tracks[source_row].file_path)
+            self._update_nav_label()
+
+
     # ─────────────────────────────────────────────────────────────────────
     # Track removal (Delete / Backspace / context menu)
     # ─────────────────────────────────────────────────────────────────────
@@ -722,9 +795,8 @@ class MainWindow(QMainWindow):
             self._current_index = -1
             self._clear_editor()
         else:
-            self._current_index = min(source_rows[-1], total - 1)
-            self._file_list.selectRow(self._current_index)
-            self._load_track(self._current_index)
+            target_source_row = min(source_rows[-1], total - 1)
+            self._select_source_row(target_source_row)
 
         self._update_nav_label()
 
@@ -884,21 +956,27 @@ class MainWindow(QMainWindow):
         elif 0 <= self._current_index < len(self._tracks):
             targets = [self._current_index]
 
+        target_tracks = [self._tracks[row] for row in targets if 0 <= row < len(self._tracks)]
+        if not target_tracks:
+            return
+
+        self._undo_stack.beginMacro(f"Case correction ({mode})")
         modified = 0
-        for row in targets:
-            if 0 <= row < len(self._tracks):
-                track = self._tracks[row]
+        try:
+            for track in target_tracks:
                 for field in _text_fields:
                     old_val = getattr(track, field, "")
                     new_val = fn(old_val)
                     if new_val != old_val:
-                        setattr(track, field, new_val)
+                        self._undo_stack.push(TagEditCommand(self, [track], field, new_val))
                         modified += 1
+        finally:
+            self._undo_stack.endMacro()
 
-        if modified and 0 <= self._current_index < len(self._tracks):
+        if 0 <= self._current_index < len(self._tracks):
             self._load_track(self._current_index)
         self.statusBar().showMessage(
-            f"Case correction applied to {len(targets)} track(s)", 3000
+            f"Case correction applied to {len(target_tracks)} track(s)", 3000
         )
 
     # ─────────────────────────────────────────────────────────────────────
@@ -958,10 +1036,12 @@ class MainWindow(QMainWindow):
         from ..import_io.itunes_sync import export_changes
         ok = export_changes(self._tracks, self._last_itunes_xml)
         if ok:
+            bak_path = Path(self._last_itunes_xml).with_suffix(Path(self._last_itunes_xml).suffix + ".bak")
+            bak_msg = f"A backup was created at:\n{bak_path}\n\n" if bak_path.exists() else ""
             QMessageBox.information(
                 self, "Export Complete",
                 f"Changes exported to:\n{self._last_itunes_xml}\n\n"
-                "A .bak backup was created automatically.\n"
+                f"{bak_msg}"
                 "Re-import the library in iTunes to see the updates."
             )
             self.statusBar().showMessage("iTunes library updated successfully", 5000)
@@ -969,9 +1049,77 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Export Failed",
                                 "Could not export changes. Check the log for details.")
 
-    # ─────────────────────────────────────────────────────────────────────
-    # Field helpers (data-driven)
-    # ─────────────────────────────────────────────────────────────────────
+    def _apply_field_layout(self) -> None:
+        """Re-order and show/hide tag editor fields according to current settings."""
+        if not hasattr(self, "_tag_form") or self._tag_form is None:
+            return
+        visible_fields = set(self._settings.visible_fields())
+        order = self._settings.field_order()
+        field_def_map = {f[0]: f for f in self._FIELD_DEFS}
+        ordered_keys = [k for k in order if k in field_def_map]
+        for f in self._FIELD_DEFS:
+            if f[0] not in ordered_keys:
+                ordered_keys.append(f[0])
+
+        while self._tag_form.rowCount() > 0:
+            self._tag_form.removeRow(0)
+
+        for key in ordered_keys:
+            if key in self._field_widgets:
+                label, edit = self._field_widgets[key]
+                self._tag_form.addRow(label, edit)
+                visible = key in visible_fields
+                label.setVisible(visible)
+                edit.setVisible(visible)
+
+        if hasattr(self, "_apply_to_selected_check"):
+            self._tag_form.addRow("", self._apply_to_selected_check)
+
+    def _schedule_auto_save(self) -> None:
+        """Schedule auto-save if enabled and any track is dirty; otherwise cancel pending timer."""
+        if not self._settings.auto_save_enabled():
+            if self._auto_save_timer.isActive():
+                self._auto_save_timer.stop()
+            return
+
+        if any(getattr(t, "is_dirty", False) for t in self._tracks):
+            self._auto_save_timer.start()
+        else:
+            if self._auto_save_timer.isActive():
+                self._auto_save_timer.stop()
+
+    def _confirm_discard_dirty(self) -> bool:
+        """Ensure unsaved changes are saved or confirmed before discarding session."""
+        dirty_tracks = [t for t in self._tracks if getattr(t, "is_dirty", False)]
+        if not dirty_tracks:
+            return True
+
+        if self._settings.auto_save_enabled():
+            self._auto_save_timer.stop()
+            self._save_tags()
+            dirty_tracks = [t for t in self._tracks if getattr(t, "is_dirty", False)]
+            if not dirty_tracks:
+                return True
+
+        # In non-interactive or non-visible states (e.g. headless tests), avoid blocking modal dialogs
+        if not self.isVisible():
+            return True
+
+        reply = QMessageBox.question(
+            self,
+            "Unsaved Changes",
+            f"You have {len(dirty_tracks)} track(s) with unsaved changes.\n\n"
+            "Do you want to save them before proceeding?",
+            QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Save
+        )
+        if reply == QMessageBox.StandardButton.Save:
+            self._save_tags()
+            return not any(getattr(t, "is_dirty", False) for t in self._tracks)
+        elif reply == QMessageBox.StandardButton.Discard:
+            return True
+        else:
+            return False
 
     def _clear_editor(self) -> None:
         """Clear all editor fields and reset the cover preview."""
@@ -1012,10 +1160,12 @@ class MainWindow(QMainWindow):
         the undo system (which stores plain ints) never silently drops the total.
         """
         indexes = self._file_list.selectionModel().selectedRows()
-        targets = [self._proxy_model.mapToSource(idx).row() for idx in indexes]
-
-        if not targets and 0 <= self._current_index < len(self._tracks):
+        if self._apply_to_selected_check.isChecked() and indexes:
+            targets = [self._proxy_model.mapToSource(idx).row() for idx in indexes]
+        elif 0 <= self._current_index < len(self._tracks):
             targets = [self._current_index]
+        else:
+            targets = []
 
         if not targets:
             return
@@ -1042,8 +1192,7 @@ class MainWindow(QMainWindow):
     def _on_field_text_changed(self, field_key: str, text: str) -> None:
         """Wrapper that updates track data then restarts the auto-save debounce."""
         self._field_changed(field_key, text)
-        if self._tracks and self._current_index >= 0 and self._settings.auto_save_enabled():
-            self._auto_save_timer.start()
+        self._schedule_auto_save()
 
     def _get_selected_rows(self) -> set[int]:
         """Return the set of currently selected row indices in the file list."""
@@ -1110,24 +1259,31 @@ class MainWindow(QMainWindow):
         else:
             files = list(file_paths)
 
+        if not self._confirm_discard_dirty():
+            return
+
+        # Cancel any active loader before resetting session
+        if self._active_loader and self._active_loader.isRunning():
+            self._active_loader.cancel()
+            self._active_loader.wait(300)
+
+        self._session_id += 1
+        self._undo_stack.clear()
+
         self._track_model.beginResetModel()
         self._tracks.clear()
         
         new_tracks = [Track(f) for f in files]
-        for t in new_tracks:
-            t.load()
-            
         self._tracks.extend(new_tracks)
         self._track_model.endResetModel()
         self._proxy_model.invalidate()
         self._file_list.viewport().update()
 
         if self._tracks:
-            self._current_index = 0
-            self._file_list.selectRow(0)
-            self._load_track(0)
+            self._select_source_row(0)
         else:
             self._current_index = -1
+            self._clear_editor()
 
         self._update_nav_label()
         self.statusBar().showMessage(f"Loaded {len(files)} file(s)", 3000)
@@ -1138,30 +1294,35 @@ class MainWindow(QMainWindow):
             self._settings.add_recent_folder(folder)
             self._update_recent_menu()
 
+        # Kick off background loader for tracks that are not yet loaded
+        items_to_load = [(i, t) for i, t in enumerate(self._tracks) if not t.is_loaded]
+        if items_to_load:
+            self._active_loader = TrackLoaderWorker(self._session_id, items_to_load, self)
+            self._active_loader.track_loaded.connect(self._on_background_track_loaded)
+            self._active_loader.finished_loading.connect(self._on_background_loading_finished)
+            self._active_loader.start()
+
     def _add_files(self, file_paths: "list[str]") -> None:
         """Append files to the current session — used by drag-and-drop."""
         if not file_paths:
             return
+
+        if self._active_loader and self._active_loader.isRunning():
+            self._active_loader.cancel()
+            self._active_loader.wait(300)
+
         start = len(self._tracks)
         self._track_model.beginResetModel()
         
         new_tracks = [Track(f) for f in file_paths]
-        for t in new_tracks:
-            t.load()
-            
         self._tracks.extend(new_tracks)
         self._track_model.endResetModel()
         self._proxy_model.invalidate()
         self._file_list.viewport().update()
 
         # Select the first newly-added track and immediately load its metadata
-        # (selectRow fires selectionChanged, but the model reset can race it;
-        #  explicit _load_track here guarantees the editor is populated)
         if start < len(self._tracks):
-            self._current_index = start
-            self._file_list.selectRow(start)
-            self._load_track(start)
-            self._audio_player.load_track(self._tracks[start].file_path)
+            self._select_source_row(start)
 
         self._update_nav_label()
         self.statusBar().showMessage(
@@ -1171,6 +1332,41 @@ class MainWindow(QMainWindow):
         folder = str(Path(file_paths[0]).parent)
         self._settings.add_recent_folder(folder)
         self._update_recent_menu()
+
+        # Background load remaining unloaded tracks
+        items_to_load = [(i, t) for i, t in enumerate(self._tracks) if not t.is_loaded]
+        if items_to_load:
+            self._active_loader = TrackLoaderWorker(self._session_id, items_to_load, self)
+            self._active_loader.track_loaded.connect(self._on_background_track_loaded)
+            self._active_loader.finished_loading.connect(self._on_background_loading_finished)
+            self._active_loader.start()
+
+    @Slot(int, int)
+    def _on_background_track_loaded(self, session_id: int, row: int) -> None:
+        """Handle background loading completion of a track row."""
+        if session_id != self._session_id:
+            return
+        if 0 <= row < len(self._tracks):
+            self._track_model.update_row(row)
+            if row == self._current_index:
+                self._load_track(row)
+
+    @Slot(int, int)
+    def _on_background_loading_finished(self, session_id: int, total_loaded: int) -> None:
+        """Handle completion of background track loading."""
+        if session_id != self._session_id:
+            return
+        self.statusBar().showMessage(f"All {len(self._tracks)} track(s) loaded", 3000)
+
+    def closeEvent(self, event) -> None:
+        """Ensure background loader is cancelled and unsaved changes confirmed on window close."""
+        if not self._confirm_discard_dirty():
+            event.ignore()
+            return
+        if self._active_loader and self._active_loader.isRunning():
+            self._active_loader.cancel()
+            self._active_loader.wait(300)
+        super().closeEvent(event)
 
 
     @Slot()
@@ -1241,7 +1437,7 @@ class MainWindow(QMainWindow):
                 self._proxy_model.mapToSource(idx).row()
                 for idx in self._file_list.selectionModel().selectedRows()
             ]
-            if apply_to_all_selected or self._apply_to_selected_check.isChecked():
+            if (apply_to_all_selected or self._apply_to_selected_check.isChecked()) and selected_rows:
                 target_rows = [r for r in selected_rows if 0 <= r < len(self._tracks)]
             elif 0 <= self._current_index < len(self._tracks):
                 target_rows = [self._current_index]
@@ -1264,15 +1460,16 @@ class MainWindow(QMainWindow):
 
     @Slot()
     def _clear_cover(self) -> None:
-        target_rows = []
-        if self._apply_to_selected_check.isChecked():
-            # FIX #6: map proxy rows to source rows before indexing _tracks
-            for idx in self._file_list.selectionModel().selectedRows():
-                row = self._proxy_model.mapToSource(idx).row()
-                if 0 <= row < len(self._tracks):
-                    target_rows.append(row)
+        selected_rows = [
+            self._proxy_model.mapToSource(idx).row()
+            for idx in self._file_list.selectionModel().selectedRows()
+        ]
+        if self._apply_to_selected_check.isChecked() and selected_rows:
+            target_rows = [r for r in selected_rows if 0 <= r < len(self._tracks)]
         elif 0 <= self._current_index < len(self._tracks):
             target_rows = [self._current_index]
+        else:
+            target_rows = []
 
         if target_rows:
             target_tracks = [self._tracks[r] for r in target_rows]
@@ -1299,32 +1496,75 @@ class MainWindow(QMainWindow):
             )
             return
 
-        from ..online.cover_finder import CoverFinder
-        if self._cover_finder is None:
-            self._cover_finder = CoverFinder(self)
-            self._cover_finder.set_base_url(self._settings.musicbrainz_url())
-            self._cover_finder.cover_fetched.connect(self._on_cover_fetched)
-            self._cover_finder.fetch_error.connect(self._on_cover_fetch_error)
-
-        self.statusBar().showMessage(f"Looking up cover for {artist} - {album}…")
-        self._cover_finder.set_base_url(self._settings.musicbrainz_url())
-        self._cover_finder.fetch_cover(artist, album)
-
-    def _on_cover_fetched(self, qimage) -> None:
-        if self._cover_finder:
-            pil_image = self._cover_finder.qimage_to_pil(qimage)
+        if self._cover_finder is not None:
+            finder = self._cover_finder
         else:
             from ..online.cover_finder import CoverFinder
-            pil_image = CoverFinder().qimage_to_pil(qimage)
+            finder = CoverFinder(self)
+        finder.set_base_url(self._settings.musicbrainz_url())
 
+        req_session = self._session_id
+        target_tracks = [track]
+
+        finder.cover_fetched.connect(
+            lambda qimg: self._on_cover_fetched_for_tracks(qimg, req_session, target_tracks, finder)
+        )
+        finder.fetch_error.connect(
+            lambda err: self._on_cover_fetch_error_for_tracks(err, finder)
+        )
+
+        self.statusBar().showMessage(f"Looking up cover for {artist} - {album}…")
+        finder.fetch_cover(artist, album)
+
+    def _on_cover_fetched_for_tracks(
+        self, qimage, req_session: int, target_tracks: list[Track], finder=None
+    ) -> None:
+        if finder is not None and finder is not self._cover_finder:
+            finder.deleteLater()
+
+        if self._session_id != req_session:
+            return
+
+        valid_tracks = [t for t in target_tracks if t in self._tracks]
+        if not valid_tracks:
+            return
+
+        from ..online.cover_finder import CoverFinder
+        pil_image = CoverFinder().qimage_to_pil(qimage)
+        if pil_image is None:
+            return
+
+        if pil_image.mode not in ("RGB", "RGBA"):
+            pil_image = pil_image.convert("RGB")
+
+        max_size = self._settings.cover_max_res()
+        if pil_image.width > max_size or pil_image.height > max_size:
+            pil_image.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+        # Strip metadata
+        new_img = Image.new(pil_image.mode, pil_image.size)
+        new_img.paste(pil_image)
+        pil_image = new_img
+
+        cmd = CoverChangeCommand(
+            self, valid_tracks, pil_image, f"Fetch cover art ({len(valid_tracks)} track(s))"
+        )
+        self._undo_stack.push(cmd)
+
+        if 0 <= self._current_index < len(self._tracks) and self._tracks[self._current_index] in valid_tracks:
+            cur = self._tracks[self._current_index]
+            self._cover_label.setCoverImage(cur.cover_art, cur.album)
+        self.statusBar().showMessage("Cover art fetched and applied successfully", 3000)
+
+    def _on_cover_fetch_error_for_tracks(self, error_msg: str, finder=None) -> None:
+        if finder is not None and finder is not self._cover_finder:
+            finder.deleteLater()
+        self._on_cover_fetch_error(error_msg)
+
+    def _on_cover_fetched(self, qimage) -> None:
         if 0 <= self._current_index < len(self._tracks):
-            track = self._tracks[self._current_index]
-            track.cover_art = pil_image
-            # Adaptive resizing
-            track.optimize_cover(max_size=self._settings.cover_max_res())
-            
-            self._cover_label.setCoverImage(track.cover_art, track.album)
-            self.statusBar().showMessage("Cover art fetched and optimized successfully", 3000)
+            self._on_cover_fetched_for_tracks(
+                qimage, self._session_id, [self._tracks[self._current_index]]
+            )
 
     def _on_cover_fetch_error(self, error_msg: str) -> None:
         QMessageBox.warning(self, "Fetch Error", error_msg)
@@ -1362,7 +1602,8 @@ class MainWindow(QMainWindow):
                 tags = {
                     "artist": track.artist, "album": track.album, "title": track.title,
                     "track_number": track.track_number, "disc_number": track.disc_number,
-                    "year": track.year,
+                    "year": track.year, "genre": track.genre, "composer": track.composer,
+                    "comment": track.comment, "grouping": track.grouping, "bpm": track.bpm,
                 }
                 
                 # format_filename is now sanitized in patterns.py
@@ -1415,20 +1656,23 @@ class MainWindow(QMainWindow):
             fields = dialog.selected_fields()
             case_sensitive = dialog.case_sensitive()
             modified = 0
-            for track in self._tracks:
-                fdict = {
-                    k: getattr(track, k, "")
-                    for k in ("artist", "album", "title", "genre",
-                              "comment", "composer", "grouping")
-                }
-                new_fdict = apply_regex_to_fields(
-                    fdict, pattern, replacement, fields, case_sensitive
-                )
-                for key in fields:
-                    if fdict.get(key) != new_fdict.get(key):
-                        # Wrap in Undo command
-                        self._undo_stack.push(TagEditCommand(self, [self._tracks.index(track)], key, new_fdict[key]))
-                        modified += 1
+            self._undo_stack.beginMacro("Regex Find & Replace")
+            try:
+                for track in self._tracks:
+                    fdict = {
+                        k: getattr(track, k, "")
+                        for k in ("artist", "album", "title", "genre",
+                                  "comment", "composer", "grouping")
+                    }
+                    new_fdict = apply_regex_to_fields(
+                        fdict, pattern, replacement, fields, case_sensitive
+                    )
+                    for key in fields:
+                        if fdict.get(key) != new_fdict.get(key):
+                            self._undo_stack.push(TagEditCommand(self, [track], key, new_fdict[key]))
+                            modified += 1
+            finally:
+                self._undo_stack.endMacro()
             if modified:
                 self.statusBar().showMessage(
                     f"Applied regex to {modified} field(s)", 5000
@@ -1532,31 +1776,43 @@ class MainWindow(QMainWindow):
 
     def _apply_mb_metadata(self, data: Dict[str, Any]) -> None:
         """Map the fetched tracklist to the selected tracks in the UI."""
-        indexes = self._file_list.selectionModel().selectedRows()
-        if not indexes:
-            # If nothing selected, just use the current view starting from first
+        raw_indexes = self._file_list.selectionModel().selectedRows()
+        if not raw_indexes:
             indexes = [self._proxy_model.index(i, 0) for i in range(self._proxy_model.rowCount())]
-            
-        source_indices = [self._proxy_model.mapToSource(i).row() for i in indexes]
+        else:
+            indexes = sorted(raw_indexes, key=lambda idx: idx.row())
+
+        target_tracks = [
+            self._tracks[self._proxy_model.mapToSource(i).row()]
+            for i in indexes
+            if 0 <= self._proxy_model.mapToSource(i).row() < len(self._tracks)
+        ]
+        if not target_tracks:
+            return
+
         self._undo_stack.beginMacro(f"Fetch MusicBrainz: {data.get('title')}")
-        
-        # Map MusicBrainz tracks (1..N) to our selection
         mb_tracks = data.get("tracks", [])
-        for i, idx in enumerate(source_indices):
+        for i, track in enumerate(target_tracks):
             if i >= len(mb_tracks):
                 break
-                
             mb_t = mb_tracks[i]
-            # Apply common album/artist to everyone
-            self._undo_stack.push(TagEditCommand(self, [idx], "album", data.get("title")))
-            self._undo_stack.push(TagEditCommand(self, [idx], "artist", mb_t.get("artist") or data.get("artist")))
-            self._undo_stack.push(TagEditCommand(self, [idx], "title", mb_t.get("title")))
-            self._undo_stack.push(TagEditCommand(self, [idx], "track_number", str(mb_t.get("number"))))
-            
+            self._undo_stack.push(TagEditCommand(self, [track], "album", data.get("title") or ""))
+            self._undo_stack.push(TagEditCommand(self, [track], "artist", mb_t.get("artist") or data.get("artist") or ""))
+            self._undo_stack.push(TagEditCommand(self, [track], "title", mb_t.get("title") or ""))
+            if mb_t.get("number"):
+                self._undo_stack.push(TagEditCommand(self, [track], "track_number", str(mb_t.get("number"))))
+            if mb_t.get("track_total"):
+                self._undo_stack.push(TagEditCommand(self, [track], "track_total", str(mb_t.get("track_total"))))
+            if mb_t.get("disc_number"):
+                self._undo_stack.push(TagEditCommand(self, [track], "disc_number", str(mb_t.get("disc_number"))))
+            if mb_t.get("disc_total"):
+                self._undo_stack.push(TagEditCommand(self, [track], "disc_total", str(mb_t.get("disc_total"))))
+
         self._undo_stack.endMacro()
+        self._schedule_auto_save()
         if 0 <= self._current_index < len(self._tracks):
             self._load_track(self._current_index)
-        self.statusBar().showMessage("Successfully applied MusicBrainz metadata")
+        self.statusBar().showMessage(f"Successfully applied MusicBrainz metadata ({min(len(target_tracks), len(mb_tracks))} tracks)")
 
     @Slot()
     def _tag_from_filename(self) -> None:
@@ -1680,7 +1936,6 @@ class MainWindow(QMainWindow):
 
             # Map fields to selected tracks
             # Map Narrator -> Composer, Series -> Grouping
-            modified = 0
             indexes = self._file_list.selectionModel().selectedRows()
             source_rows = [self._proxy_model.mapToSource(i).row() for i in indexes]
             
@@ -1688,36 +1943,63 @@ class MainWindow(QMainWindow):
             if not source_rows and 0 <= self._current_index < len(self._tracks):
                 source_rows = [self._current_index]
 
-            for row in source_rows:
-                track = self._tracks[row]
-                if book.get("title"): track.album = book["title"]
-                if book.get("artist"): track.artist = book["artist"]
-                if book.get("narrator"): track.composer = book["narrator"]
-                if book.get("series_name"): track.grouping = book["series_name"]
-                if book.get("year"): track.year = book["year"]
-                if book.get("comment"): track.comment = book["comment"]
-                modified += 1
+            target_tracks = [self._tracks[row] for row in source_rows if 0 <= row < len(self._tracks)]
+            if not target_tracks:
+                return
 
-            self.statusBar().showMessage(f"Applied audiobook metadata to {modified} track(s)", 5000)
+            self._undo_stack.beginMacro("Apply Audiobook Metadata")
+            try:
+                for track in target_tracks:
+                    if book.get("title"):
+                        self._undo_stack.push(TagEditCommand(self, [track], "album", book["title"]))
+                    if book.get("artist"):
+                        self._undo_stack.push(TagEditCommand(self, [track], "artist", book["artist"]))
+                    if book.get("narrator"):
+                        self._undo_stack.push(TagEditCommand(self, [track], "composer", book["narrator"]))
+                    if book.get("series_name"):
+                        self._undo_stack.push(TagEditCommand(self, [track], "grouping", book["series_name"]))
+                    if book.get("year"):
+                        self._undo_stack.push(TagEditCommand(self, [track], "year", str(book["year"])))
+                    if book.get("comment"):
+                        self._undo_stack.push(TagEditCommand(self, [track], "comment", book["comment"]))
+            finally:
+                self._undo_stack.endMacro()
+
+            self.statusBar().showMessage(f"Applied audiobook metadata to {len(target_tracks)} track(s)", 5000)
             
             # Update UI and fetch cover if provided
             if 0 <= self._current_index < len(self._tracks):
                 self._load_track(self._current_index)
             
             if book.get("cover_url"):
-                self._download_cover_url(book["cover_url"])
+                self._download_cover_url(book["cover_url"], target_tracks=target_tracks)
 
-    def _download_cover_url(self, url: str) -> None:
-        """Helper to download and apply cover art from a URL."""
-        if not url: return
+    def _download_cover_url(self, url: str, target_tracks: Optional[List[Track]] = None) -> None:
+        """Helper to download and apply cover art from a URL asynchronously and safely."""
+        if not url:
+            return
         self.statusBar().showMessage("Downloading cover art…")
-        
-        from PySide6.QtNetwork import QNetworkRequest, QNetworkAccessManager, QNetworkReply, QSslError
+
+        req_session = self._session_id
+        if target_tracks is None:
+            selected_rows = [
+                self._proxy_model.mapToSource(idx).row()
+                for idx in self._file_list.selectionModel().selectedRows()
+            ]
+            if self._apply_to_selected_check.isChecked() and selected_rows:
+                target_tracks = [self._tracks[r] for r in selected_rows if 0 <= r < len(self._tracks)]
+            elif 0 <= self._current_index < len(self._tracks):
+                target_tracks = [self._tracks[self._current_index]]
+            else:
+                target_tracks = []
+
+        if not target_tracks:
+            return
+
+        from PySide6.QtNetwork import QNetworkRequest, QNetworkAccessManager, QNetworkReply
         from PySide6.QtCore import QUrl
         from PySide6.QtGui import QImage
-        
-        manager = QNetworkAccessManager(self)
-        
+
         # Handle data URLs manually for better reliability
         if url.startswith("data:image/"):
             try:
@@ -1729,47 +2011,88 @@ class MainWindow(QMainWindow):
                     if qimg.loadFromData(decoded):
                         from ..online.cover_finder import CoverFinder
                         pil_img = CoverFinder().qimage_to_pil(qimg)
-                        self._set_cover_from_image(pil_img, apply_to_all_selected=True)
-                        self.statusBar().showMessage("Cover art applied from data URL", 3000)
-                        return
+                        if pil_img and self._session_id == req_session:
+                            valid_tracks = [t for t in target_tracks if t in self._tracks]
+                            if valid_tracks:
+                                if pil_img.mode not in ("RGB", "RGBA"):
+                                    pil_img = pil_img.convert("RGB")
+                                max_size = self._settings.cover_max_res()
+                                if pil_img.width > max_size or pil_img.height > max_size:
+                                    pil_img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+                                cmd = CoverChangeCommand(
+                                    self, valid_tracks, pil_img,
+                                    f"Apply cover from data URL ({len(valid_tracks)} track(s))"
+                                )
+                                self._undo_stack.push(cmd)
+                                if 0 <= self._current_index < len(self._tracks) and self._tracks[self._current_index] in valid_tracks:
+                                    cur = self._tracks[self._current_index]
+                                    self._cover_label.setCoverImage(cur.cover_art, cur.album)
+                                self.statusBar().showMessage(
+                                    f"Cover art applied from data URL to {len(valid_tracks)} track(s)", 3000
+                                )
+                                return
             except Exception as e:
                 self.statusBar().showMessage(f"Failed to process data URL: {e}", 5000)
                 return
 
+        manager = QNetworkAccessManager(self)
         request = QNetworkRequest(QUrl(url))
-        # CRITICAL: Follow redirects (browsers often provide redirecting links)
-        request.setAttribute(QNetworkRequest.Attribute.RedirectPolicyAttribute, 
-                             QNetworkRequest.RedirectPolicy.NoLessSafeRedirectPolicy)
-        # Use a browser-like User-Agent to avoid being blocked
-        request.setRawHeader(b"User-Agent", b"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-        
+        request.setAttribute(
+            QNetworkRequest.Attribute.RedirectPolicyAttribute,
+            QNetworkRequest.RedirectPolicy.NoLessSafeRedirectPolicy
+        )
+        request.setRawHeader(
+            b"User-Agent",
+            b"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        )
+
         reply = manager.get(request)
-        
+
         def handle_ssl_errors(errors):
-            ignorable = (QSslError.SslError.SelfSignedCertificate, QSslError.SslError.SelfSignedCertificateInChain)
-            if all(e.error() in ignorable for e in errors):
-                reply.ignoreSslErrors()
+            err_msgs = [e.errorString() for e in errors]
+            self.statusBar().showMessage(f"TLS certificate error: {'; '.join(err_msgs)}", 5000)
 
         def handle_reply():
+            if self._session_id != req_session:
+                reply.deleteLater()
+                return
+
+            valid_tracks = [t for t in target_tracks if t in self._tracks]
+            if not valid_tracks:
+                reply.deleteLater()
+                return
+
             if reply.error() == QNetworkReply.NetworkError.NoError:
                 data = reply.readAll().data()
                 qimg = QImage()
                 if qimg.loadFromData(data):
                     from ..online.cover_finder import CoverFinder
                     pil_img = CoverFinder().qimage_to_pil(qimg)
-                    
-                    if 0 <= self._current_index < len(self._tracks):
-                        self._set_cover_from_image(pil_img, apply_to_all_selected=True)
-                        self.statusBar().showMessage("Cover art downloaded and applied", 3000)
+                    if pil_img:
+                        if pil_img.mode not in ("RGB", "RGBA"):
+                            pil_img = pil_img.convert("RGB")
+                        max_size = self._settings.cover_max_res()
+                        if pil_img.width > max_size or pil_img.height > max_size:
+                            pil_img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+                        cmd = CoverChangeCommand(
+                            self, valid_tracks, pil_img,
+                            f"Download cover art ({len(valid_tracks)} track(s))"
+                        )
+                        self._undo_stack.push(cmd)
+                        if 0 <= self._current_index < len(self._tracks) and self._tracks[self._current_index] in valid_tracks:
+                            cur = self._tracks[self._current_index]
+                            self._cover_label.setCoverImage(cur.cover_art, cur.album)
+                        self.statusBar().showMessage(
+                            f"Cover art downloaded and applied to {len(valid_tracks)} track(s)", 3000
+                        )
                 else:
                     self.statusBar().showMessage("Downloaded data is not a valid image", 5000)
             else:
                 self.statusBar().showMessage(f"Failed to download cover: {reply.errorString()}", 5000)
             reply.deleteLater()
-            
+
         reply.finished.connect(handle_reply)
         reply.sslErrors.connect(handle_ssl_errors)
-        # Keep manager alive for the duration of the request
         self._temp_nam = manager 
 
     @Slot()
@@ -1788,6 +2111,9 @@ class MainWindow(QMainWindow):
         from ..online.discogs_lookup import DiscogsLookup
         if self._discogs_lookup is None:
             self._discogs_lookup = DiscogsLookup(self)
+            token = self._settings.discogs_token()
+            if token:
+                self._discogs_lookup.set_credentials(user_token=token)
             self._discogs_lookup.releases_fetched.connect(
                 self._on_discogs_releases_fetched
             )
@@ -1844,14 +2170,20 @@ class MainWindow(QMainWindow):
         dialog = SettingsDialog(settings=self._settings, parent=self)
         if dialog.exec():
             # Refresh UI based on potentially changed settings
-            visible_fields = self._settings.visible_fields()
-            for field_key, (label, edit) in self._field_widgets.items():
-                visible = field_key in visible_fields
-                label.setVisible(visible)
-                edit.setVisible(visible)
+            self._apply_field_layout()
             
-            # Update auto-save interval
-            self._auto_save_timer.setInterval(self._settings.auto_save_interval())
+            # Update auto-save
+            if not self._settings.auto_save_enabled():
+                self._auto_save_timer.stop()
+            else:
+                self._auto_save_timer.setInterval(self._settings.auto_save_interval())
+
+            # Update recent folders cap and menu
+            folders = self._settings.recent_folders()
+            limit = self._settings.max_recent_items()
+            if len(folders) > limit:
+                self._settings.setValue("ui/recent_folders", folders[:limit])
+            self._update_recent_menu()
             
             # Update online tokens if lookup modules exist
             if self._discogs_lookup:

@@ -256,5 +256,56 @@ def test_export_csv_write_error(temp_dir):
         assert result is False
 
 
+def test_export_csv_formula_sanitization(temp_dir):
+    """Test Finding #23: Fields starting with =, +, -, @ are escaped to prevent formula injection."""
+    track = Mock(spec=Track)
+    track.file_path = Path("song.mp3")
+    track.artist = "=cmd|' /C calc'!A0"
+    track.album = "+SUM(A1:A10)"
+    track.title = "-1+1"
+    track.track_number = 1
+    track.disc_number = 1
+    track.genre = "@evil"
+    track.year = 2024
+    track.comment = "Normal comment"
+    track.composer = "=1+1"
+    track.grouping = ""
+    track.bpm = 120
+
+    csv_path = Path(temp_dir) / "export_formula.csv"
+    assert export_csv([track], str(csv_path)) is True
+
+    with open(csv_path, "r", encoding="utf-8") as f:
+        rows = list(csv.reader(f))
+        data_row = rows[1]
+        assert data_row[1] == "'=cmd|' /C calc'!A0"
+        assert data_row[2] == "'+SUM(A1:A10)"
+        assert data_row[3] == "'-1+1"
+        assert data_row[6] == "'@evil"
+        assert data_row[9] == "'=1+1"
+
+
+def test_export_html_markup_escaping(temp_dir):
+    """Test Finding #23: HTML export escapes hostile markup strings."""
+    from metatag.core.export.exporter import export_html
+
+    track = Mock(spec=Track)
+    track.file_path = Path("evil<script>.mp3")
+    track.artist = "<script>alert(1)</script>"
+    track.album = "Rock & Roll <img src=x onerror=alert(2)>"
+    track.title = "<b>Bold</b> & 'Special'"
+    track.track_number = 1
+    track.duration = 180000
+
+    html_path = Path(temp_dir) / "report.html"
+    assert export_html([track], html_path) is True
+
+    content = html_path.read_text(encoding="utf-8")
+    assert "<script>alert(1)</script>" not in content
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in content
+    assert "Rock &amp; Roll &lt;img src=x onerror=alert(2)&gt;" in content
+    assert "&lt;b&gt;Bold&lt;/b&gt; &amp; &#x27;Special&#x27;" in content or "&lt;b&gt;Bold&lt;/b&gt; &amp; 'Special'" in content
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

@@ -63,27 +63,23 @@ class CoverFinder(QObject):
         request.setRawHeader(b"User-Agent", b"MetaTag/1.0 (https://github.com/metatag)")
         request.setRawHeader(b"Accept", b"application/json")
 
+        self._last_ssl_error = None
         reply = self._nam.get(request)
         reply.sslErrors.connect(self._handle_ssl_errors)
         reply.finished.connect(lambda: self._handle_cover_art_reply(reply))
 
     def _handle_ssl_errors(self, errors: List[QSslError]) -> None:
-        """Handle SSL errors, ignore self-signed certificates."""
-        ignorable = []
-        for error in errors:
-            if error.error() in (
-                QSslError.SslError.SelfSignedCertificate,
-                QSslError.SslError.SelfSignedCertificateInChain,
-            ):
-                ignorable.append(error)
-        if len(ignorable) == len(errors):
-            # All errors are ignorable
-            self.sender().ignoreSslErrors(ignorable)
+        """Handle SSL errors by reporting them visibly without ignoring certificates."""
+        err_msgs = [e.errorString() for e in errors]
+        self._last_ssl_error = f"SSL certificate validation failed: {'; '.join(err_msgs)}"
+        self.fetch_error.emit(self._last_ssl_error)
 
     def _handle_cover_art_reply(self, reply: QNetworkReply) -> None:
         """Handle Cover Art Archive JSON reply."""
         try:
             if reply.error() != QNetworkReply.NetworkError.NoError:
+                if getattr(self, "_last_ssl_error", None):
+                    return
                 self.fetch_error.emit(
                     f"Cover Art Archive request failed: {reply.errorString()}"
                 )
@@ -126,6 +122,7 @@ class CoverFinder(QObject):
         request = QNetworkRequest(QUrl(url))
         request.setRawHeader(b"User-Agent", b"MetaTag/1.0 (https://github.com/metatag)")
 
+        self._last_ssl_error = None
         reply = self._nam.get(request)
         reply.sslErrors.connect(self._handle_ssl_errors)
         reply.finished.connect(lambda: self._handle_image_reply(reply))
@@ -134,6 +131,8 @@ class CoverFinder(QObject):
         """Handle downloaded image data."""
         try:
             if reply.error() != QNetworkReply.NetworkError.NoError:
+                if getattr(self, "_last_ssl_error", None):
+                    return
                 self.fetch_error.emit(f"Image download failed: {reply.errorString()}")
                 return
 

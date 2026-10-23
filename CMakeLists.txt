@@ -13,7 +13,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Widgets Network)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network)
 find_package(TagLib REQUIRED)
 
 option(BUILD_TESTS "Build tests" OFF)
@@ -25,6 +25,7 @@ add_subdirectory(src/import)
 add_subdirectory(src/utils)
 
 if (BUILD_TESTS)
+    find_package(Qt6 REQUIRED COMPONENTS Test)
     enable_testing()
     add_subdirectory(tests)
 endif()

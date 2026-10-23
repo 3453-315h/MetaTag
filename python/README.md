@@ -6,7 +6,7 @@
   <img src="img/splash.png" alt="MetaTag Splash" width="600">
 </p>
 
-MetaTag is a powerful, cross-platform audio tagging application designed for music collectors, DJs, researchers, and audiobook lovers. Built with Python and PySide6, it offers a high-performance Model/View architecture capable of handling massive libraries with zero latency.
+MetaTag is a powerful, cross-platform audio tagging application designed for music collectors, DJs, researchers, and audiobook lovers. Built with Python and PySide6, it uses a Model/View architecture with asynchronous background metadata loading to maintain responsive UI interactions even when handling large libraries.
 
 ---
 
@@ -20,7 +20,7 @@ MetaTag is a powerful, cross-platform audio tagging application designed for mus
   - Series Name → `Grouping`
   - Book Description → `Comment`
 - **Batch Editing**: Simultaneously update metadata across hundreds of selected tracks.
-- **Undo/Redo System**: Full session-wide undo/redo support for all tag edits and file operations.
+- **Undo/Redo System**: Session-wide undo/redo support for metadata tag edits, cover art updates, and case corrections. *(Note: Physical disk file renames and external library sync imports apply directly and are not tracked on the undo stack).*
 
 ### 🔍 Online Metadata & Discovery
 - **Audnexus Integration**: Specialized lookup for audiobooks with high-resolution book covers.
@@ -42,7 +42,7 @@ MetaTag is a powerful, cross-platform audio tagging application designed for mus
 ---
 
 ## 💻 Tech Stack & Repository
-- **Language**: Python 3.14+
+- **Language**: Python >= 3.9 (CI tested on Python 3.12)
 - **UI Framework**: PySide6 (Qt 6)
 - **Metadata Engine**: Mutagen
 - **GitHub**: [https://github.com/3453-315h/MetaTag](https://github.com/3453-315h/MetaTag)

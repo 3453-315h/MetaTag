@@ -2,7 +2,9 @@
 #include <QFile>
 #include <QDir>
 #include <QFileInfo>
+#include <QQueue>
 #include <QDebug>
+#include <filesystem>
 
 namespace metatag {
 
@@ -10,42 +12,58 @@ bool FileUtils::safeMove(const QString& src, const QString& dst)
 {
     if (src.isEmpty() || dst.isEmpty())
         return false;
-    
-    QFile srcFile(src);
-    if (!srcFile.exists())
+
+    std::error_code ec;
+    std::filesystem::path srcPath(src.toStdString());
+    std::filesystem::path dstPath(dst.toStdString());
+
+    if (!std::filesystem::exists(srcPath, ec) || ec)
         return false;
-    
-    // Ensure destination directory exists
-    QFileInfo dstInfo(dst);
-    QDir dstDir = dstInfo.dir();
-    if (!dstDir.exists() && !dstDir.mkpath("."))
-        return false;
-    
-    // Remove destination if exists
-    if (QFile::exists(dst) && !QFile::remove(dst))
-        return false;
-    
-    return srcFile.rename(dst);
+
+    if (std::filesystem::equivalent(srcPath, dstPath, ec) && !ec)
+        return true;
+
+    if (dstPath.has_parent_path()) {
+        std::filesystem::create_directories(dstPath.parent_path(), ec);
+        if (ec) return false;
+    }
+
+    std::filesystem::rename(srcPath, dstPath, ec);
+    if (!ec)
+        return true;
+
+    // Cross-device fallback: copy with overwrite, then remove src
+    ec.clear();
+    std::filesystem::copy_file(srcPath, dstPath, std::filesystem::copy_options::overwrite_existing, ec);
+    if (!ec) {
+        std::filesystem::remove(srcPath, ec);
+        return true;
+    }
+    return false;
 }
 
 bool FileUtils::safeCopy(const QString& src, const QString& dst)
 {
     if (src.isEmpty() || dst.isEmpty())
         return false;
-    
-    QFile srcFile(src);
-    if (!srcFile.exists())
+
+    std::error_code ec;
+    std::filesystem::path srcPath(src.toStdString());
+    std::filesystem::path dstPath(dst.toStdString());
+
+    if (!std::filesystem::exists(srcPath, ec) || ec)
         return false;
-    
-    QFileInfo dstInfo(dst);
-    QDir dstDir = dstInfo.dir();
-    if (!dstDir.exists() && !dstDir.mkpath("."))
-        return false;
-    
-    if (QFile::exists(dst) && !QFile::remove(dst))
-        return false;
-    
-    return srcFile.copy(dst);
+
+    if (std::filesystem::equivalent(srcPath, dstPath, ec) && !ec)
+        return true;
+
+    if (dstPath.has_parent_path()) {
+        std::filesystem::create_directories(dstPath.parent_path(), ec);
+        if (ec) return false;
+    }
+
+    std::filesystem::copy_file(srcPath, dstPath, std::filesystem::copy_options::overwrite_existing, ec);
+    return !ec;
 }
 
 bool FileUtils::safeDelete(const QString& path)
@@ -60,6 +78,8 @@ bool FileUtils::safeDelete(const QString& path)
     return file.remove();
 }
 
+#include <QSet>
+
 QVector<QString> FileUtils::findAudioFiles(const QString& directory)
 {
     QVector<QString> result;
@@ -67,11 +87,17 @@ QVector<QString> FileUtils::findAudioFiles(const QString& directory)
     if (!rootDir.exists())
         return result;
     
-    // Supported audio extensions
+    // Supported audio extensions (including audiobook formats)
     QStringList filters;
     filters << "*.mp3" << "*.flac" << "*.wav" << "*.aiff" << "*.ogg" << "*.m4a" << "*.mp4"
-            << "*.oga" << "*.spx" << "*.opus" << "*.wma" << "*.aac";
+            << "*.oga" << "*.spx" << "*.opus" << "*.wma" << "*.aac" << "*.m4b" << "*.m4p";
     
+    QSet<QString> visitedDirs;
+    QString rootCanon = rootDir.canonicalPath();
+    if (!rootCanon.isEmpty()) {
+        visitedDirs.insert(rootCanon);
+    }
+
     // BFS queue of directories to process
     QQueue<QDir> dirQueue;
     dirQueue.enqueue(rootDir);
@@ -85,10 +111,14 @@ QVector<QString> FileUtils::findAudioFiles(const QString& directory)
             result.append(currentDir.absoluteFilePath(entry));
         }
         
-        // Get subdirectories to process later
-        auto subdirs = currentDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
-        for (const auto& subdir : subdirs) {
-            dirQueue.enqueue(QDir(currentDir.absoluteFilePath(subdir)));
+        // Get subdirectories to process later, tracking visited canonical paths to prevent symlink loops
+        auto subdirs = currentDir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot | QDir::Readable);
+        for (const auto& info : subdirs) {
+            QString canon = info.canonicalFilePath();
+            if (!canon.isEmpty() && !visitedDirs.contains(canon)) {
+                visitedDirs.insert(canon);
+                dirQueue.enqueue(QDir(info.absoluteFilePath()));
+            }
         }
     }
     

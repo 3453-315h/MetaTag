@@ -49,12 +49,18 @@ def import_csv(csv_path: str) -> List[Track]:
                     continue
 
                 # Apply metadata
+                def _clean_str(field_name: str) -> str:
+                    raw = row[mapping[field_name][0]].strip()
+                    if len(raw) >= 2 and raw[0] == "'" and raw[1] in ("=", "+", "-", "@"):
+                        return raw[1:]
+                    return raw
+
                 if "artist" in mapping:
-                    track.artist = row[mapping["artist"][0]].strip()
+                    track.artist = _clean_str("artist")
                 if "album" in mapping:
-                    track.album = row[mapping["album"][0]].strip()
+                    track.album = _clean_str("album")
                 if "title" in mapping:
-                    track.title = row[mapping["title"][0]].strip()
+                    track.title = _clean_str("title")
                 if "track_number" in mapping:
                     try:
                         track.track_number = int(row[mapping["track_number"][0]])
@@ -66,18 +72,18 @@ def import_csv(csv_path: str) -> List[Track]:
                     except ValueError:
                         pass
                 if "genre" in mapping:
-                    track.genre = row[mapping["genre"][0]].strip()
+                    track.genre = _clean_str("genre")
                 if "year" in mapping:
                     try:
                         track.year = int(row[mapping["year"][0]])
                     except ValueError:
                         pass
                 if "comment" in mapping:
-                    track.comment = row[mapping["comment"][0]].strip()
+                    track.comment = _clean_str("comment")
                 if "composer" in mapping:
-                    track.composer = row[mapping["composer"][0]].strip()
+                    track.composer = _clean_str("composer")
                 if "grouping" in mapping:
-                    track.grouping = row[mapping["grouping"][0]].strip()
+                    track.grouping = _clean_str("grouping")
                 if "bpm" in mapping:
                     try:
                         track.bpm = int(row[mapping["bpm"][0]])
@@ -154,16 +160,16 @@ def export_csv(tracks: List[Track], csv_path: str) -> bool:
                 writer.writerow(
                     [
                         str(track.file_path),
-                        track.artist,
-                        track.album,
-                        track.title,
+                        f"'{track.artist}" if track.artist and str(track.artist)[0] in ("=", "+", "-", "@") else track.artist,
+                        f"'{track.album}" if track.album and str(track.album)[0] in ("=", "+", "-", "@") else track.album,
+                        f"'{track.title}" if track.title and str(track.title)[0] in ("=", "+", "-", "@") else track.title,
                         track.track_number,
                         track.disc_number,
-                        track.genre,
+                        f"'{track.genre}" if track.genre and str(track.genre)[0] in ("=", "+", "-", "@") else track.genre,
                         track.year,
-                        track.comment,
-                        track.composer,
-                        track.grouping,
+                        f"'{track.comment}" if track.comment and str(track.comment)[0] in ("=", "+", "-", "@") else track.comment,
+                        f"'{track.composer}" if track.composer and str(track.composer)[0] in ("=", "+", "-", "@") else track.composer,
+                        f"'{track.grouping}" if track.grouping and str(track.grouping)[0] in ("=", "+", "-", "@") else track.grouping,
                         track.bpm,
                     ]
                 )

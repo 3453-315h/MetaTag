@@ -51,15 +51,16 @@ def test_map_columns_unknown_headers():
     assert len(mapping) == 1
 
 
-def test_import_library_db_not_found():
+def test_import_library_db_not_found(tmp_path):
     """Test import when database file doesn't exist."""
-    with patch("sqlite3.connect", side_effect=sqlite3.Error("cannot open")):
-        tracks = import_library("nonexistent.db")
-        assert tracks == []
+    tracks = import_library(str(tmp_path / "nonexistent.db"))
+    assert tracks == []
 
 
-def test_import_library_no_tracks_table():
+def test_import_library_no_tracks_table(tmp_path):
     """Test import when Tracks table missing."""
+    db_file = tmp_path / "test.db"
+    db_file.touch()
     mock_conn = Mock()
     mock_cursor = Mock()
     mock_conn.cursor.return_value = mock_cursor
@@ -67,12 +68,14 @@ def test_import_library_no_tracks_table():
     mock_cursor.fetchall.return_value = []  # No columns
 
     with patch("sqlite3.connect", return_value=mock_conn):
-        tracks = import_library("test.db")
+        tracks = import_library(str(db_file))
         assert tracks == []
 
 
-def test_import_library_no_file_path_column():
+def test_import_library_no_file_path_column(tmp_path):
     """Test import when file path column missing."""
+    db_file = tmp_path / "test.db"
+    db_file.touch()
     mock_conn = Mock()
     mock_cursor = Mock()
     mock_conn.cursor.return_value = mock_cursor
@@ -83,12 +86,14 @@ def test_import_library_no_file_path_column():
     ]
 
     with patch("sqlite3.connect", return_value=mock_conn):
-        tracks = import_library("test.db")
+        tracks = import_library(str(db_file))
         assert tracks == []
 
 
-def test_import_library_success_mocked():
+def test_import_library_success_mocked(tmp_path):
     """Test successful import with mocked database."""
+    db_file = tmp_path / "test.db"
+    db_file.touch()
     mock_conn = Mock()
     mock_cursor = Mock()
     mock_conn.cursor.return_value = mock_cursor
@@ -147,18 +152,15 @@ def test_import_library_success_mocked():
         patch("metatag.import_io.musicbee_sync.Track", return_value=mock_track),
         patch("pathlib.Path.exists", return_value=True),
     ):
-        tracks = import_library("test.db")
+        tracks = import_library(str(db_file))
         assert len(tracks) == 1
-        track = tracks[0]
-        # Check that setters were called (track attributes updated)
-        # Since we mocked Track, we can't easily assert values.
-        # Instead we can verify that load() was called.
         mock_track.load.assert_called_once()
-        # Verify that setters were called? We'll trust the mapping.
 
 
-def test_import_library_file_not_exists():
+def test_import_library_file_not_exists(tmp_path):
     """Test import when referenced file does not exist."""
+    db_file = tmp_path / "test.db"
+    db_file.touch()
     mock_conn = Mock()
     mock_cursor = Mock()
     mock_conn.cursor.return_value = mock_cursor
@@ -171,12 +173,14 @@ def test_import_library_file_not_exists():
         patch("sqlite3.connect", return_value=mock_conn),
         patch("pathlib.Path.exists", return_value=False),
     ):
-        tracks = import_library("test.db")
+        tracks = import_library(str(db_file))
         assert tracks == []
 
 
-def test_import_library_track_load_fails():
+def test_import_library_track_load_fails(tmp_path):
     """Test import when track.load() fails."""
+    db_file = tmp_path / "test.db"
+    db_file.touch()
     mock_conn = Mock()
     mock_cursor = Mock()
     mock_conn.cursor.return_value = mock_cursor
@@ -192,8 +196,53 @@ def test_import_library_track_load_fails():
         patch("metatag.import_io.musicbee_sync.Track", return_value=mock_track),
         patch("pathlib.Path.exists", return_value=True),
     ):
-        tracks = import_library("test.db")
+        tracks = import_library(str(db_file))
         assert tracks == []
+
+
+def test_import_library_real_sqlite_fixture(tmp_path, mocker):
+    """Test import against a real SQLite database file."""
+    db_file = tmp_path / "musicbee.db"
+    conn = sqlite3.connect(str(db_file))
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE Tracks (
+            Location TEXT,
+            Artist TEXT,
+            Album TEXT,
+            Title TEXT,
+            TrackNumber INTEGER,
+            Year INTEGER,
+            Genre TEXT
+        )
+    """)
+    cur.execute("""
+        INSERT INTO Tracks VALUES (
+            '/music/track1.mp3',
+            'Queen',
+            'A Night at the Opera',
+            'Bohemian Rhapsody',
+            11,
+            1975,
+            'Rock'
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+    mock_track = Mock()
+    mock_track.load.return_value = True
+    mocker.patch("metatag.import_io.musicbee_sync.Track", return_value=mock_track)
+    mocker.patch("pathlib.Path.exists", return_value=True)
+
+    tracks = import_library(str(db_file))
+    assert len(tracks) == 1
+    assert mock_track.artist == "Queen"
+    assert mock_track.album == "A Night at the Opera"
+    assert mock_track.title == "Bohemian Rhapsody"
+    assert mock_track.track_number == 11
+    assert mock_track.year == 1975
+    assert mock_track.genre == "Rock"
 
 
 def test_export_changes_not_implemented():

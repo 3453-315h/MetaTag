@@ -57,15 +57,30 @@ def test_search_releases_constructs_url():
 
 
 def test_search_releases_with_credentials():
-    """Test URL includes credentials when set."""
+    """Test request includes credentials in Authorization header instead of URL query string."""
     lookup = DiscogsLookup()
     lookup.set_credentials(consumer_key="key123", consumer_secret="secret456")
     with patch.object(QNetworkAccessManager, "get") as mock_get:
         lookup.search_releases("Artist", "Album")
         request = mock_get.call_args[0][0]
         url = request.url().toString()
-        assert "key=key123" in url
-        assert "secret=secret456" in url
+        assert "key=key123" not in url
+        assert "secret=secret456" not in url
+        auth_hdr = bytes(request.rawHeader("Authorization")).decode("utf-8")
+        assert auth_hdr == "Discogs key=key123, secret=secret456"
+
+
+def test_search_releases_with_user_token():
+    """Test user token is sent in Authorization header."""
+    lookup = DiscogsLookup()
+    lookup.set_credentials(user_token="token789")
+    with patch.object(QNetworkAccessManager, "get") as mock_get:
+        lookup.search_releases("Artist", "Album")
+        request = mock_get.call_args[0][0]
+        url = request.url().toString()
+        assert "token=token789" not in url
+        auth_hdr = bytes(request.rawHeader("Authorization")).decode("utf-8")
+        assert auth_hdr == "Discogs token=token789"
 
 
 def test_handle_reply_finished_success():
@@ -169,6 +184,36 @@ def test_extract_label():
     assert lookup._extract_label(release) == "Label1"
     release = {"label": []}
     assert lookup._extract_label(release) == ""
+
+
+def test_handle_ssl_errors_does_not_ignore_and_redacts_credentials():
+    """Test _handle_ssl_errors does not call ignoreSslErrors and redacts user token/secrets."""
+    lookup = DiscogsLookup()
+    secret_token = "SECRET_TOKEN_XYZ_12345"
+    lookup.set_credentials(user_token=secret_token)
+
+    mock_sender = Mock()
+    mock_sender.ignoreSslErrors = Mock()
+
+    from PySide6.QtNetwork import QSslError
+    mock_error = Mock(spec=QSslError)
+    mock_error.errorString.return_value = f"Certificate invalid with token {secret_token}"
+
+    captured_errors = []
+    captured_releases = []
+    lookup.lookup_error.connect(captured_errors.append)
+    lookup.releases_fetched.connect(captured_releases.append)
+
+    with patch.object(lookup, "sender", return_value=mock_sender):
+        lookup._handle_ssl_errors([mock_error])
+
+        mock_sender.ignoreSslErrors.assert_not_called()
+        assert len(captured_errors) == 1
+        assert "SSL certificate validation failed" in captured_errors[0]
+        # Secret token must NOT be leaked
+        assert secret_token not in captured_errors[0]
+        assert "[REDACTED]" in captured_errors[0]
+        assert len(captured_releases) == 0
 
 
 if __name__ == "__main__":

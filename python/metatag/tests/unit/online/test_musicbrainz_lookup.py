@@ -52,16 +52,21 @@ def test_handle_reply_finished_success():
     ).encode("utf-8")
 
     # Capture emitted signal
-    captured_ids = []
+    captured_releases = []
 
-    def capture(ids):
-        captured_ids.extend(ids)
+    def capture(releases):
+        captured_releases.extend(releases)
 
     lookup.releases_fetched.connect(capture)
 
     lookup._handle_reply_finished(mock_reply)
 
-    assert captured_ids == ["123", "456"]
+    assert len(captured_releases) == 2
+    assert [r["id"] for r in captured_releases] == ["123", "456"]
+    assert captured_releases[0]["id"] == "123"
+    assert "title" in captured_releases[0]
+    assert "artist" in captured_releases[0]
+    mock_reply.deleteLater.assert_called_once()
 
 
 def test_handle_reply_finished_no_releases():
@@ -84,6 +89,7 @@ def test_handle_reply_finished_no_releases():
 
     assert len(captured_error) == 1
     assert "No releases found" in captured_error[0]
+    mock_reply.deleteLater.assert_called_once()
 
 
 def test_handle_reply_finished_network_error():
@@ -100,6 +106,7 @@ def test_handle_reply_finished_network_error():
 
     assert len(captured_error) == 1
     assert "Connection refused" in captured_error[0]
+    mock_reply.deleteLater.assert_called_once()
 
 
 def test_handle_reply_finished_json_decode_error():
@@ -116,28 +123,11 @@ def test_handle_reply_finished_json_decode_error():
 
     assert len(captured_error) == 1
     assert "Failed to parse" in captured_error[0]
+    mock_reply.deleteLater.assert_called_once()
 
 
-def test_handle_ssl_errors_ignorable():
-    """Test _handle_ssl_errors with ignorable errors."""
-    lookup = MusicBrainzLookup()
-    mock_sender = Mock()
-    mock_sender.ignoreSslErrors = Mock()
-
-    # Mock QSslError
-    from PySide6.QtNetwork import QSslError
-
-    mock_error = Mock(spec=QSslError)
-    mock_error.error.return_value = QSslError.SslError.SelfSignedCertificate
-
-    with patch.object(lookup, "sender", return_value=mock_sender):
-        lookup._handle_ssl_errors([mock_error])
-
-        mock_sender.ignoreSslErrors.assert_called_once_with([mock_error])
-
-
-def test_handle_ssl_errors_non_ignorable():
-    """Test _handle_ssl_errors with non-ignorable errors."""
+def test_handle_ssl_errors_does_not_ignore():
+    """Test _handle_ssl_errors emits actionable error and does NOT ignore SSL errors."""
     lookup = MusicBrainzLookup()
     mock_sender = Mock()
     mock_sender.ignoreSslErrors = Mock()
@@ -145,13 +135,41 @@ def test_handle_ssl_errors_non_ignorable():
     from PySide6.QtNetwork import QSslError
 
     mock_error = Mock(spec=QSslError)
-    mock_error.error.return_value = QSslError.SslError.CertificateRevoked
+    mock_error.errorString.return_value = "The certificate is self-signed"
+
+    captured_errors = []
+    lookup.lookup_error.connect(captured_errors.append)
 
     with patch.object(lookup, "sender", return_value=mock_sender):
         lookup._handle_ssl_errors([mock_error])
 
-        # Should not call ignoreSslErrors because error is not ignorable
         mock_sender.ignoreSslErrors.assert_not_called()
+        assert len(captured_errors) == 1
+        assert "SSL certificate validation failed" in captured_errors[0]
+        assert "self-signed" in captured_errors[0]
+
+
+def test_handle_ssl_errors_revoked():
+    """Test _handle_ssl_errors with revoked certificate does not ignore."""
+    lookup = MusicBrainzLookup()
+    mock_sender = Mock()
+    mock_sender.ignoreSslErrors = Mock()
+
+    from PySide6.QtNetwork import QSslError
+
+    mock_error = Mock(spec=QSslError)
+    mock_error.errorString.return_value = "The certificate is revoked"
+
+    captured_errors = []
+    lookup.lookup_error.connect(captured_errors.append)
+
+    with patch.object(lookup, "sender", return_value=mock_sender):
+        lookup._handle_ssl_errors([mock_error])
+
+        mock_sender.ignoreSslErrors.assert_not_called()
+        assert len(captured_errors) == 1
+        assert "SSL certificate validation failed" in captured_errors[0]
+        assert "revoked" in captured_errors[0]
 
 
 if __name__ == "__main__":

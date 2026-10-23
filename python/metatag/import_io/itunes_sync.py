@@ -1,6 +1,7 @@
 """iTunes library import/export."""
 
 import logging
+import os
 import plistlib
 import shutil
 from pathlib import Path
@@ -18,7 +19,7 @@ def itunes_url_to_path(url: str) -> Path:
     if parsed.scheme != "file":
         raise ValueError(f"Not a file URL: {url}")
 
-    if parsed.netloc:
+    if parsed.netloc and parsed.netloc.lower() != "localhost":
         path = f"//{parsed.netloc}{parsed.path}"
     else:
         path = parsed.path
@@ -26,6 +27,10 @@ def itunes_url_to_path(url: str) -> Path:
     # Windows: file:///C:/Users/... → /C:/Users/… → C:/Users/…
     if path.startswith("/") and len(path) > 2 and path[2] == ":":
         path = path[1:]
+    elif not (parsed.netloc and parsed.netloc.lower() != "localhost"):
+        # On POSIX / local paths, normalize redundant leading slashes
+        if path.startswith("//"):
+            path = "/" + path.lstrip("/")
 
     return Path(unquote(path))
 
@@ -109,12 +114,25 @@ def _map_itunes_fields(track_info: dict, track: Track) -> None:
         track.comment = str(comment)
     if isinstance(n := track_info.get("Track Number"), int) and n > 0:
         track.track_number = n
+    if isinstance(nt := track_info.get("Track Count"), int) and nt > 0:
+        track.track_total = nt
     if isinstance(d := track_info.get("Disc Number"), int) and d > 0:
         track.disc_number = d
+    if isinstance(dt := track_info.get("Disc Count"), int) and dt > 0:
+        track.disc_total = dt
     if isinstance(y := track_info.get("Year"), int) and y > 0:
         track.year = y
     if isinstance(b := track_info.get("BPM"), int) and b > 0:
         track.bpm = b
+
+
+def _normalize_path_key(path: Path) -> str:
+    """Return platform-aware path string for case-sensitive/insensitive mapping."""
+    try:
+        resolved = str(path.resolve())
+    except Exception:
+        resolved = str(path)
+    return resolved.lower() if os.name == "nt" else resolved
 
 
 def export_changes(tracks: List[Track], xml_path: str) -> bool:
@@ -122,9 +140,9 @@ def export_changes(tracks: List[Track], xml_path: str) -> bool:
 
     The function:
     1. Reads the existing iTunes XML.
-    2. Builds a mapping of file:// URL → Tracks entry.
-    3. Updates every matching entry with current Track metadata.
-    4. Creates a .bak backup of the original, then writes the updated XML.
+    2. Builds a mapping of file path → Tracks entry using platform-aware identity.
+    3. Updates every matching entry with current Track metadata, removing cleared fields.
+    4. Creates a .bak backup of the original, then writes the updated XML atomically.
 
     Returns True on success, False on any failure.
     """
@@ -146,45 +164,73 @@ def export_changes(tracks: List[Track], xml_path: str) -> bool:
         logger.error("Malformed iTunes XML: missing 'Tracks' dictionary")
         return False
 
-    # ── Build URL→entry map ───────────────────────────────────────────────
-    # Key = normalised file URL string; value = the mutable plist sub-dict
-    url_to_entry: dict[str, dict] = {}
+    # ── Build path→entry map ───────────────────────────────────────────────
+    path_to_entry: dict[str, dict] = {}
     for entry in tracks_dict.values():
         if isinstance(entry, dict) and (loc := entry.get("Location")):
-            # Normalise to lower-case for case-insensitive path matching
-            url_to_entry[loc.lower()] = entry
+            try:
+                p = itunes_url_to_path(loc)
+                path_to_entry[_normalize_path_key(p)] = entry
+            except Exception:
+                pass
 
     updated = 0
     for track in tracks:
-        url = path_to_itunes_url(track.file_path)
-        entry = url_to_entry.get(url.lower())
+        entry = path_to_entry.get(_normalize_path_key(track.file_path))
         if entry is None:
             logger.debug(f"Track not found in iTunes XML: {track.file_path.name}")
             continue
 
-        # Write back every field that iTunes supports
-        entry["Name"]    = track.title
-        entry["Artist"]  = track.artist
-        entry["Album"]   = track.album
-        entry["Genre"]   = track.genre
+        # Write back every field that iTunes supports; remove cleared optional fields
+        entry["Name"] = track.title
+        entry["Artist"] = track.artist
+        entry["Album"] = track.album
+        entry["Genre"] = track.genre
+
         if track.composer:
             entry["Composer"] = track.composer
+        elif "Composer" in entry:
+            del entry["Composer"]
+
         if track.grouping:
             entry["Grouping"] = track.grouping
+        elif "Grouping" in entry:
+            del entry["Grouping"]
+
         if track.comment:
             entry["Comments"] = track.comment
+        elif "Comments" in entry:
+            del entry["Comments"]
+
         if track.track_number > 0:
             entry["Track Number"] = track.track_number
+        elif "Track Number" in entry:
+            del entry["Track Number"]
+
         if track.track_total > 0:
             entry["Track Count"] = track.track_total
+        elif "Track Count" in entry:
+            del entry["Track Count"]
+
         if track.disc_number > 0:
             entry["Disc Number"] = track.disc_number
+        elif "Disc Number" in entry:
+            del entry["Disc Number"]
+
         if track.disc_total > 0:
             entry["Disc Count"] = track.disc_total
+        elif "Disc Count" in entry:
+            del entry["Disc Count"]
+
         if track.year > 0:
             entry["Year"] = track.year
+        elif "Year" in entry:
+            del entry["Year"]
+
         if track.bpm > 0:
             entry["BPM"] = track.bpm
+        elif "BPM" in entry:
+            del entry["BPM"]
 
         updated += 1
 
@@ -192,20 +238,39 @@ def export_changes(tracks: List[Track], xml_path: str) -> bool:
         logger.warning("No tracks matched in iTunes XML — nothing to export")
         return False
 
-    # ── Backup original ───────────────────────────────────────────────────
+    # ── Require successful backup before touching the source ──────────────
     backup = xml_file.with_suffix(".bak")
     try:
         shutil.copy2(xml_file, backup)
         logger.info(f"iTunes XML backup saved to {backup}")
     except Exception as e:
-        logger.warning(f"Could not create backup: {e}")
+        logger.error(f"Could not create required backup before export: {e}")
+        return False
 
-    # ── Write updated XML ─────────────────────────────────────────────────
+    # ── Write updated XML safely via temporary file and atomic replace ────
+    import tempfile
+    import os
+    tmp_path = None
     try:
-        with open(xml_file, "wb") as fh:
-            plistlib.dump(plist, fh, fmt=plistlib.FMT_XML)
+        with tempfile.NamedTemporaryFile(
+            dir=xml_file.parent,
+            delete=False,
+            prefix=f"{xml_file.stem}_",
+            suffix=".tmp",
+        ) as tmp_file:
+            tmp_path = Path(tmp_file.name)
+            plistlib.dump(plist, tmp_file, fmt=plistlib.FMT_XML)
+            tmp_file.flush()
+            os.fsync(tmp_file.fileno())
+
+        os.replace(tmp_path, xml_file)
         logger.info(f"Exported changes for {updated} track(s) to {xml_path}")
         return True
     except Exception as e:
-        logger.error(f"Failed to write iTunes XML: {e}")
+        logger.error(f"Failed to write iTunes XML atomically: {e}")
+        if tmp_path and tmp_path.exists():
+            try:
+                tmp_path.unlink()
+            except Exception:
+                pass
         return False

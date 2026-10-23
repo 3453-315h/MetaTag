@@ -4,7 +4,7 @@
 
 # MetaTag - Professional Audio & Audiobook Metadata Management
 
-**MetaTag** is a powerful, cross-platform audio tagging application designed for music collectors, DJs, researchers, and audiobook lovers. Built with a high-performance Model/View architecture, it offers professional-grade metadata management with zero latency, even for massive libraries.
+**MetaTag** is a powerful, cross-platform audio tagging application designed for music collectors, DJs, researchers, and audiobook lovers. Built with a Model/View architecture and asynchronous background metadata loading, it keeps UI interactions responsive even when handling large libraries.
 
 [![Python CI](https://github.com/3453-315h/MetaTag/actions/workflows/python.yml/badge.svg)](https://github.com/3453-315h/MetaTag/actions/workflows/python.yml)
 [![Native CI](https://github.com/3453-315h/MetaTag/actions/workflows/ci.yml/badge.svg)](https://github.com/3453-315h/MetaTag/actions/workflows/ci.yml)
@@ -17,7 +17,7 @@
 - **Multi-Format Support**: Full support for MP3 (ID3v1/v2), FLAC, M4A/MP4 (iTunes), Ogg Vorbis, Opus, WAV, and AIFF.
 - **Specialized Audiobook Engine**: Integrated fetching for **Narrators**, **Series**, and **Book Descriptions** via the Audnexus API.
 - **Intelligent Field Mapping**: Automatically maps professional audiobook fields (e.g., Narrator to Composer, Series to Grouping).
-- **Undo/Redo System**: Full session-wide undo/redo support for all tag edits and file operations.
+- **Undo/Redo System**: Session-wide undo/redo support for metadata tag edits, cover art updates, and case corrections. *(Note: Physical disk file renames and external library sync imports apply directly and are not tracked on the undo stack).*
 - **Batch Editing**: Simultaneously update metadata across hundreds of tracks with a single click.
 
 ### 🔍 Online Metadata & Discovery
@@ -41,7 +41,7 @@
 ---
 
 ## 💻 Tech Stack
-- **Standard Suite (v1.3.1)**: Built with **Python 3.14+**, **PySide6 (Qt 6)**, and the **Mutagen** metadata engine.
+- **Standard Suite (v1.3.1)**: Built with **Python >= 3.9** (CI verified on Python 3.12), **PySide6 (Qt 6)**, and the **Mutagen** metadata engine.
 - **Native Implementation**: The original C++/TagLib core is available for high-performance native requirements (see `src/`).
 
 ## 🛠️ Usage

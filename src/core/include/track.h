@@ -3,6 +3,8 @@
 #include <QString>
 #include <QVector>
 #include <QImage>
+#include <QSet>
+#include <taglib/fileref.h>
 
 namespace metatag {
 
@@ -32,22 +34,23 @@ public:
     bool isDirty() const { return m_dirty; }
     void setDirty(bool dirty = true) { m_dirty = dirty; }
 
-    void setArtist(const QString& artist) { m_artist = artist; m_dirty = true; }
-    void setAlbum(const QString& album) { m_album = album; m_dirty = true; }
-    void setTitle(const QString& title) { m_title = title; m_dirty = true; }
-    void setTrackNumber(int number) { m_trackNumber = number; m_dirty = true; }
-    void setDiscNumber(int number) { m_discNumber = number; m_dirty = true; }
-    void setGenre(const QString& genre) { m_genre = genre; m_dirty = true; }
-    void setYear(int year) { m_year = year; m_dirty = true; }
-    void setComment(const QString& comment) { m_comment = comment; m_dirty = true; }
-    void setComposer(const QString& composer) { m_composer = composer; m_dirty = true; }
-    void setGrouping(const QString& grouping) { m_grouping = grouping; m_dirty = true; }
-    void setBpm(int bpm) { m_bpm = bpm; m_dirty = true; }
-    void setCoverArt(const QImage& cover) { m_coverArt = cover; m_dirty = true; }
+    void setArtist(const QString& artist) { if (m_artist != artist) { m_artist = artist; m_modifiedFields.insert("artist"); m_dirty = true; } }
+    void setAlbum(const QString& album) { if (m_album != album) { m_album = album; m_modifiedFields.insert("album"); m_dirty = true; } }
+    void setTitle(const QString& title) { if (m_title != title) { m_title = title; m_modifiedFields.insert("title"); m_dirty = true; } }
+    void setTrackNumber(int number) { if (m_trackNumber != number) { m_trackNumber = number; m_modifiedFields.insert("trackNumber"); m_dirty = true; } }
+    void setDiscNumber(int number) { if (m_discNumber != number) { m_discNumber = number; m_modifiedFields.insert("discNumber"); m_dirty = true; } }
+    void setGenre(const QString& genre) { if (m_genre != genre) { m_genre = genre; m_modifiedFields.insert("genre"); m_dirty = true; } }
+    void setYear(int year) { if (m_year != year) { m_year = year; m_modifiedFields.insert("year"); m_dirty = true; } }
+    void setComment(const QString& comment) { if (m_comment != comment) { m_comment = comment; m_modifiedFields.insert("comment"); m_dirty = true; } }
+    void setComposer(const QString& composer) { if (m_composer != composer) { m_composer = composer; m_modifiedFields.insert("composer"); m_dirty = true; } }
+    void setGrouping(const QString& grouping) { if (m_grouping != grouping) { m_grouping = grouping; m_modifiedFields.insert("grouping"); m_dirty = true; } }
+    void setBpm(int bpm) { if (m_bpm != bpm) { m_bpm = bpm; m_modifiedFields.insert("bpm"); m_dirty = true; } }
+    void setCoverArt(const QImage& cover) { m_coverArt = cover; m_dirty = true; m_coverArtModified = true; }
     void setDuration(int ms) { m_duration = ms; }
 
 private:
     bool saveCoverArt(TagLib::FileRef& file, const QByteArray& imageData);
+    bool removeCoverArt(TagLib::FileRef& file);
     bool loadCoverArt(TagLib::FileRef& file);
 
     QString m_filePath;
@@ -66,6 +69,8 @@ private:
     int m_duration = 0;
     bool m_loaded = false;
     bool m_dirty = false;
+    bool m_coverArtModified = false;
+    QSet<QString> m_modifiedFields;
 };
 
 }

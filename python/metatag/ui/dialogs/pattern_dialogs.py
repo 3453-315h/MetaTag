@@ -146,6 +146,11 @@ class BatchRenameDialog(PatternDialogBase):
                 "track_number": track.track_number,
                 "disc_number": track.disc_number,
                 "year": track.year,
+                "genre": track.genre,
+                "composer": track.composer,
+                "comment": track.comment,
+                "grouping": track.grouping,
+                "bpm": track.bpm,
             }
             new_name = format_filename(tags, pattern) + track.file_path.suffix
             

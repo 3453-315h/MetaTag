@@ -188,5 +188,25 @@ def test_rename_tracks_multiple():
         assert results == {0: True, 1: False, 2: True}
 
 
+def test_rename_tracks_collision_rejected():
+    """Test Finding #8: rename_tracks rejects collisions where multiple tracks target the same filename."""
+    t0 = create_mock_track(file_path=Path("track0.mp3"), artist="SameArtist")
+    t1 = create_mock_track(file_path=Path("track1.mp3"), artist="SameArtist")
+    t2 = create_mock_track(file_path=Path("track2.mp3"), artist="UniqueArtist")
+
+    pattern = "%artist%.mp3"
+
+    with patch("metatag.utils.rename_utils.rename_track", return_value=True) as mock_rename:
+        results = rename_tracks([t0, t1, t2], pattern)
+
+        # t0 and t1 collide (both generate SameArtist.mp3) -> rejected
+        assert results[0] is False
+        assert results[1] is False
+        # t2 is unique -> succeeds
+        assert results[2] is True
+        # rename_track should only have been called for t2
+        assert mock_rename.call_count == 1
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

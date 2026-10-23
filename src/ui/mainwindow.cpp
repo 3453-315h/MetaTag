@@ -7,6 +7,7 @@
 #include <QFileDialog>
 #include <QLabel>
 #include <QFileInfo>
+#include <QStatusBar>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)

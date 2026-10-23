@@ -6,51 +6,92 @@ from pathlib import Path
 from typing import List
 
 
+import tempfile
+
+
 def safe_move(src: str, dst: str) -> bool:
     """Move file safely, creating destination directory if needed."""
-    src_path = Path(src)
-    dst_path = Path(dst)
+    try:
+        src_path = Path(src)
+        dst_path = Path(dst)
 
-    if not src_path.exists():
-        return False
-
-    # Ensure destination directory exists
-    dst_path.parent.mkdir(parents=True, exist_ok=True)
-
-    # Remove destination if exists
-    if dst_path.exists():
-        try:
-            dst_path.unlink()
-        except OSError:
+        if not src_path.exists():
             return False
 
-    try:
-        shutil.move(str(src_path), str(dst_path))
-        return True
-    except (OSError, shutil.Error):
+        if dst_path.exists():
+            try:
+                if src_path.samefile(dst_path):
+                    return True
+            except OSError:
+                if src_path.resolve() == dst_path.resolve():
+                    return True
+
+        dst_path.parent.mkdir(parents=True, exist_ok=True)
+
+        try:
+            os.replace(src_path, dst_path)
+            return True
+        except OSError:
+            # Cross-filesystem or fallback: stage via temp file in dst.parent
+            tmp_fd, tmp_name = tempfile.mkstemp(
+                dir=str(dst_path.parent),
+                prefix=f".{dst_path.name}.tmp",
+            )
+            os.close(tmp_fd)
+            tmp_path = Path(tmp_name)
+            try:
+                shutil.copy2(str(src_path), str(tmp_path))
+                os.replace(tmp_path, dst_path)
+                src_path.unlink()
+                return True
+            except Exception:
+                if tmp_path.exists():
+                    try:
+                        tmp_path.unlink()
+                    except OSError:
+                        pass
+                return False
+    except Exception:
         return False
 
 
 def safe_copy(src: str, dst: str) -> bool:
-    """Copy file safely."""
-    src_path = Path(src)
-    dst_path = Path(dst)
+    """Copy file safely, staging replacement to protect existing destination."""
+    try:
+        src_path = Path(src)
+        dst_path = Path(dst)
 
-    if not src_path.exists():
-        return False
-
-    dst_path.parent.mkdir(parents=True, exist_ok=True)
-
-    if dst_path.exists():
-        try:
-            dst_path.unlink()
-        except OSError:
+        if not src_path.exists():
             return False
 
-    try:
-        shutil.copy2(str(src_path), str(dst_path))
-        return True
-    except (OSError, shutil.Error):
+        if dst_path.exists():
+            try:
+                if src_path.samefile(dst_path):
+                    return True
+            except OSError:
+                if src_path.resolve() == dst_path.resolve():
+                    return True
+
+        dst_path.parent.mkdir(parents=True, exist_ok=True)
+
+        tmp_fd, tmp_name = tempfile.mkstemp(
+            dir=str(dst_path.parent),
+            prefix=f".{dst_path.name}.tmp",
+        )
+        os.close(tmp_fd)
+        tmp_path = Path(tmp_name)
+        try:
+            shutil.copy2(str(src_path), str(tmp_path))
+            os.replace(tmp_path, dst_path)
+            return True
+        except Exception:
+            if tmp_path.exists():
+                try:
+                    tmp_path.unlink()
+                except OSError:
+                    pass
+            return False
+    except Exception:
         return False
 
 

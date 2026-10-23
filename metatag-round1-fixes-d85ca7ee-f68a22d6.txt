@@ -1,0 +1,47 @@
+MetaTag round 1 fixes
+Base commit: d85ca7ee38f2273f66a7aa2c29390b2d72e0798e
+Repository: https://github.com/3453-315h/MetaTag
+
+You are fixing the numbered findings below in Nick's repository. First check out the named base commit or identify and explain any newer HEAD before applying changes. Make narrow, reviewable edits. Do not push, release, rewrite history, or silently delete features. Preserve user audio and library files; use disposable fixtures for destructive tests. Return changed paths, a per-item summary, exact test/build commands and counts, and anything unverified. Do not claim the native or real-network flow works merely because mocked Python tests pass.
+
+HIGH
+
+1. Undo must not target another file after the session changes.
+   python/metatag/ui/main_window.py:696-712,1098-1115,1141-1153; python/metatag/core/undo.py:17-21,35-39.
+   TagEditCommand holds integer row indices into a mutable _tracks list. Remove a row or open another session and old commands can edit the wrong track or raise IndexError. Give commands stable track identity rather than trusting old row indices; clear or invalidate history on replacement/structural changes as needed. Handle CoverChangeCommand and macros consistently, and prevent obsolete commands from targeting a new session. Test both edit -> remove row -> undo and edit -> open different files -> undo; assert the new/remaining audio metadata is unchanged and no crash occurs. Test sorted/filtered selection too.
+
+2. Cover write errors must make Save fail.
+   python/metatag/core/track.py:510-545,712-761,763-781.
+   _save_cover_art catches and logs an exception, then save() calls the mutagen save, clears _dirty and returns True. Propagate an error/result to save() so an embedding/removal failure is reported, the track remains dirty and the UI does not claim the cover was saved. Avoid partial-success claims if metadata fields were written but the cover was not. Add a test that injects a cover-write exception and checks return value, dirty state, and retry behavior; cover removal failure must be covered too. Do not silently discard user-selected art.
+
+3. Do not ignore TLS certificate errors for public metadata services.
+   python/metatag/ui/main_window.py:1748-1752; python/metatag/online/musicbrainz_lookup.py:56-71; discogs_lookup.py:60-89; cover_finder.py:66-81.
+   Remove the blanket self-signed-certificate exception. Let the request fail visibly with an actionable error; preserve normal trusted HTTPS and the existing async reply lifecycle. Discogs attaches token/key/secret in its request query, making certificate validation especially important. Add a mocked SSL-error regression test for each affected path showing no ignoreSslErrors call and no successful metadata/art application. Do not print or persist credentials in errors/logs. Do not replace this with a broad "insecure mode" default.
+
+4. Repair native C++ test discovery and build wiring.
+   CMakeLists.txt:13-23; tests/CMakeLists.txt:1-16; tests/main.cpp:1-17; tests/test_track.cpp:8-26.
+   Qt6::Test is linked without finding the Qt Test component, TestTrack is constructed from main.cpp without a shared declaration, and no add_test registers metatag-tests with CTest. Make the class/test entry point visible across translation units (or use a single test translation unit), include required Qt headers, request Qt6 Test only for BUILD_TESTS, register the executable, and make `ctest --test-dir build --output-on-failure` actually run it. Keep BUILD_TESTS=OFF usable. Add/configure the native CI invocation so zero discovered tests fails rather than looking green. Local reviewer could not configure native here because Qt6 CMake development packages were missing, so build and run in a provisioned Qt6/TagLib environment and report actual counts.
+
+MEDIUM
+
+5. Make the undo promise honest, or implement the missing coverage.
+   README.md:12-16, python/README.md:17-23; python/metatag/ui/main_window.py:868-901,1338-1404,1592-1630,1663-1708.
+   Audiobook application, case correction, imports, and physical batch rename bypass undo, although the README promises full session-wide undo/redo for all tag edits and file operations. Bring metadata changes into undo where safe; physical rename/import semantics need explicit reversible handling or a clearly narrowed documented promise and UI cues. Protect against #1 when sessions/rows change. Add tests for actual supported undo paths and update docs for deliberately non-undoable operations. Never promise a filesystem undo that does not exist.
+
+6. Make iTunes XML export failure-safe.
+   python/metatag/import_io/itunes_sync.py:187-213; python/metatag/ui/main_window.py:948-970.
+   A .bak copy failure is merely logged, then direct `open(xml_file, 'wb')` can truncate the only good library on serialization/write failure. Require a successful backup before touching the source; serialize/write a temporary file in the same directory, flush/close it, then atomically replace the source. Keep original and backup intact on failure, clean temporary artifacts, and ensure UI success text says a backup exists only when true. Test denied backup, serialization failure and replacement failure against an unchanged original.
+
+7. Do not block the GUI while opening large libraries.
+   python/metatag/ui/main_window.py:1098-1137,1141-1168; README.md:6-9, python/README.md:5-10.
+   Both file-open and drop call Track.load synchronously for every file on the UI thread. Move heavy metadata loading off the GUI thread with bounded concurrency, progressive/proper model updates, cancellation and stale-result protection when a new session starts. Keep all Qt widget/model mutation on the UI thread; do not let callbacks populate a replaced session. Verify UI responsiveness and list correctness with a delayed fake loader and a larger synthetic list. If zero latency is not a defensible promise, change the README wording rather than retaining it unmeasured.
+
+8. Bind asynchronous cover results to the request's initiating tracks.
+   python/metatag/ui/main_window.py:1288-1327,1710-1773 and online/cover_finder.py:59-68,133-158.
+   A network response currently applies art to _current_index or whichever rows are selected when it finishes. Capture stable initiating track identity (and appropriate session generation) at request start; only apply to those still-present intended targets. Decide and document whether a dropped URL applies to all selected tracks at drop time, consistent with the local image drop behavior. Discard or report stale replies; never write art to a later selection. Test selection switch, row removal, session replacement, and overlapping fetches with out-of-order replies. Preserve normal image validation and undo behavior.
+
+TEST BASELINE AND LIMITS
+
+Reviewer ran Python 3.10.12, disposable venv, `pip install -r python/requirements.txt`, then `QT_QPA_PLATFORM=offscreen python -m pytest -q` from python/: 157 passed, 8 failed. Do not claim this baseline was green. Six integration failures in python/metatag/tests/integration/test_main_window.py:121-143,169-188,235-253,269-345 rely on pre-QTableView methods (rowCount on view, removed _append_table_row), a now-nested/renamed menu, or a manually assigned track list without model selection. Update tests to exercise current QTableView/TrackModel behavior and actual user actions; do not delete them or add superficial compatibility shims solely to quiet tests. The iTunes fixture at python/metatag/tests/unit/import_io/test_itunes_sync.py:90-129 constructs `file:////tmp/...` and expects `/tmp/...` on POSIX; correct/justify URI normalization and test valid file URLs. The MusicBrainz test at python/metatag/tests/unit/online/test_musicbrainz_lookup.py:48-64 expects IDs but current result has info dicts; assert the intended consumer contract and adjust the stale side. Run the full offscreen suite to green after the fixes and report new counts, including new regression tests; run it on the project's CI Python 3.12, and align README's "3.14+" with pyproject.toml's ">=3.9" and CI's 3.12 only after confirming the actual support floor. Do not weaken or xfail meaningful tests.
+
+Native configure was blocked on review machine by absent Qt6 development CMake package. No actual native compile/test count exists yet. Real audio files, large-library performance, and live APIs were not exercised; test them separately if the environment permits and say exactly what was not checked. Keep UI, metadata format support, and existing import/export features intact. No unrelated refactor, packaging redesign or source-file mutation by the reviewer is requested.

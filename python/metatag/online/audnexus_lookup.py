@@ -38,8 +38,8 @@ class AudiobookLookup(QObject):
         q_params.addQueryItem("keywords", clean_query)
         q_params.addQueryItem("num_results", "15")
         q_params.addQueryItem("products_sort_by", "Relevance")
-        # Include authors and narrators in the search results
-        q_params.addQueryItem("response_groups", "contributors,product_attrs")
+        # Include authors, narrators, and book title/description in search results
+        q_params.addQueryItem("response_groups", "contributors,product_attrs,product_desc")
         url.setQuery(q_params)
 
         request = QNetworkRequest(url)

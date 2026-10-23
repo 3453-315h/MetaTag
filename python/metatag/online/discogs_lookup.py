@@ -57,13 +57,6 @@ class DiscogsLookup(QObject):
         query.addQueryItem("type", "release")
         query.addQueryItem("per_page", "10")  # Limit results
 
-        # Add credentials if available
-        if self._user_token:
-            query.addQueryItem("token", self._user_token)
-        elif self._consumer_key and self._consumer_secret:
-            query.addQueryItem("key", self._consumer_key)
-            query.addQueryItem("secret", self._consumer_secret)
-
         url.setQuery(query)
 
         request = QNetworkRequest(url)
@@ -71,28 +64,45 @@ class DiscogsLookup(QObject):
         request.setRawHeader(b"User-Agent", b"MetaTag/1.0 (https://github.com/metatag)")
         request.setRawHeader(b"Accept", b"application/json")
 
+        # Add credentials via Authorization header (avoids leaking in query params / logs)
+        if self._user_token:
+            request.setRawHeader(b"Authorization", f"Discogs token={self._user_token}".encode("utf-8"))
+        elif self._consumer_key and self._consumer_secret:
+            request.setRawHeader(
+                b"Authorization",
+                f"Discogs key={self._consumer_key}, secret={self._consumer_secret}".encode("utf-8"),
+            )
+
+        self._last_ssl_error = None
         reply = self._nam.get(request)
         reply.sslErrors.connect(self._handle_ssl_errors)
         reply.finished.connect(lambda: self._handle_reply_finished(reply))
 
+    def _sanitize_error_message(self, msg: str) -> str:
+        """Strip sensitive credentials from error messages and logs."""
+        if not msg:
+            return msg
+        sanitized = msg
+        for secret in (self._user_token, self._consumer_key, self._consumer_secret):
+            if secret:
+                sanitized = sanitized.replace(secret, "[REDACTED]")
+        return sanitized
+
     def _handle_ssl_errors(self, errors: List[QSslError]) -> None:
-        """Handle SSL errors, ignore self-signed certificates."""
-        ignorable = []
-        for error in errors:
-            if error.error() in (
-                QSslError.SslError.SelfSignedCertificate,
-                QSslError.SslError.SelfSignedCertificateInChain,
-            ):
-                ignorable.append(error)
-        if len(ignorable) == len(errors):
-            # All errors are ignorable
-            self.sender().ignoreSslErrors(ignorable)
+        """Handle SSL errors by reporting them visibly without ignoring certificates."""
+        err_msgs = [e.errorString() for e in errors]
+        self._last_ssl_error = self._sanitize_error_message(
+            f"SSL certificate validation failed: {'; '.join(err_msgs)}"
+        )
+        self.lookup_error.emit(self._last_ssl_error)
 
     def _handle_reply_finished(self, reply: QNetworkReply) -> None:
         """Handle finished network reply."""
         try:
             if reply.error() != QNetworkReply.NetworkError.NoError:
-                error_msg = reply.errorString()
+                if getattr(self, "_last_ssl_error", None):
+                    return
+                error_msg = self._sanitize_error_message(reply.errorString())
                 # Check for rate limiting
                 if (
                     reply.attribute(QNetworkRequest.Attribute.HttpStatusCodeAttribute)

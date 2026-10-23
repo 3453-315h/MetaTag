@@ -47,21 +47,12 @@ void CoverFinder::fetchCoverArt(const QString& releaseId)
     request.setTransferTimeout(10000); // 10 seconds
     
     QNetworkReply *reply = nam->get(request);
-    connect(reply, &QNetworkReply::sslErrors, this, [reply](const QList<QSslError> &errors) {
-        QList<QSslError> ignorableErrors;
-        for (const QSslError &error : errors) {
-            // Only ignore self-signed certificates for development/testing
-            if (error.error() == QSslError::SelfSignedCertificate ||
-                error.error() == QSslError::SelfSignedCertificateInChain) {
-                ignorableErrors.append(error);
-            }
+    connect(reply, &QNetworkReply::sslErrors, this, [this](const QList<QSslError> &errors) {
+        QStringList msgs;
+        for (const QSslError &e : errors) {
+            msgs.append(e.errorString());
         }
-        if (ignorableErrors.size() == errors.size()) {
-            qWarning() << "Ignoring self-signed certificate errors:" << ignorableErrors;
-            reply->ignoreSslErrors(ignorableErrors);
-        } else {
-            qWarning() << "SSL errors occurred and will not be ignored:" << errors;
-        }
+        emit fetchError("SSL certificate validation failed: " + msgs.join("; "));
     });
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         if (reply->error() != QNetworkReply::NoError) {
@@ -114,21 +105,12 @@ void CoverFinder::downloadImage(const QString& url)
     request.setTransferTimeout(10000); // 10 seconds
     
     QNetworkReply *reply = nam->get(request);
-    connect(reply, &QNetworkReply::sslErrors, this, [reply](const QList<QSslError> &errors) {
-        QList<QSslError> ignorableErrors;
-        for (const QSslError &error : errors) {
-            // Only ignore self-signed certificates for development/testing
-            if (error.error() == QSslError::SelfSignedCertificate ||
-                error.error() == QSslError::SelfSignedCertificateInChain) {
-                ignorableErrors.append(error);
-            }
+    connect(reply, &QNetworkReply::sslErrors, this, [this](const QList<QSslError> &errors) {
+        QStringList msgs;
+        for (const QSslError &e : errors) {
+            msgs.append(e.errorString());
         }
-        if (ignorableErrors.size() == errors.size()) {
-            qWarning() << "Ignoring self-signed certificate errors:" << ignorableErrors;
-            reply->ignoreSslErrors(ignorableErrors);
-        } else {
-            qWarning() << "SSL errors occurred and will not be ignored:" << errors;
-        }
+        emit fetchError("SSL certificate validation failed: " + msgs.join("; "));
     });
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         if (reply->error() != QNetworkReply::NoError) {
@@ -148,42 +130,6 @@ void CoverFinder::downloadImage(const QString& url)
         
         emit coverFetched(image);
     });
-}
-
-
-
-QImage CoverFinder::downloadImage(const QString& url)
-{
-    QNetworkAccessManager nam;
-    QNetworkRequest request(url);
-    request.setRawHeader("User-Agent", "MetaTag/1.0 (https://github.com/metatag)");
-    request.setTransferTimeout(10000); // 10 seconds
-    
-    QNetworkReply *reply = nam.get(request);
-    QObject::connect(reply, &QNetworkReply::sslErrors, [reply](const QList<QSslError> &errors) {
-        qWarning() << "SSL errors occurred:" << errors;
-        reply->ignoreSslErrors();
-    });
-    QEventLoop loop;
-    QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-    loop.exec();
-    
-    if (reply->error() != QNetworkReply::NoError) {
-        qWarning() << "Image download failed:" << reply->errorString();
-        reply->deleteLater();
-        return QImage();
-    }
-    
-    QByteArray data = reply->readAll();
-    reply->deleteLater();
-    
-    QImage image;
-    if (!image.loadFromData(data)) {
-        qWarning() << "Failed to load image data";
-        return QImage();
-    }
-    
-    return image;
 }
 
 }

@@ -1,4 +1,6 @@
+#include <QApplication>
 #include <QtTest>
+#include "test_track.h"
 
 int main(int argc, char *argv[])
 {

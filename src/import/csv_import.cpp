@@ -8,51 +8,59 @@
 
 namespace metatag {
 
-static QStringList parseCsvLine(const QString& line)
+static QVector<QStringList> parseCsvContent(const QString& content)
 {
-    QStringList fields;
-    QString field;
+    QVector<QStringList> records;
+    QStringList currentRecord;
+    QString currentField;
     bool inQuotes = false;
-    bool fieldHasQuotes = false;
+    int len = content.length();
 
-    for (int i = 0; i < line.length(); ++i) {
-        QChar ch = line[i];
-        if (ch == '"') {
-            if (inQuotes && i + 1 < line.length() && line[i + 1] == '"') {
-                // Escaped quote: ""
-                field += '"';
-                ++i; // Skip next quote
-                fieldHasQuotes = true;
-            } else {
-                // Toggle quote state
-                inQuotes = !inQuotes;
-                fieldHasQuotes = true;
-            }
-        } else if (ch == ',' && !inQuotes) {
-            // End of field
-            if (fieldHasQuotes) {
-                // Remove surrounding quotes if present
-                if (field.startsWith('"') && field.endsWith('"')) {
-                    field = field.mid(1, field.length() - 2);
+    for (int i = 0; i < len; ++i) {
+        QChar ch = content[i];
+
+        if (inQuotes) {
+            if (ch == '"') {
+                if (i + 1 < len && content[i + 1] == '"') {
+                    currentField += '"';
+                    ++i; // skip escaped quote
+                } else {
+                    inQuotes = false;
                 }
+            } else {
+                currentField += ch;
             }
-            fields.append(field);
-            field.clear();
-            fieldHasQuotes = false;
         } else {
-            field += ch;
+            if (ch == '"') {
+                inQuotes = true;
+            } else if (ch == ',') {
+                currentRecord.append(currentField);
+                currentField.clear();
+            } else if (ch == '\n') {
+                currentRecord.append(currentField);
+                currentField.clear();
+                records.append(currentRecord);
+                currentRecord.clear();
+            } else if (ch == '\r') {
+                if (i + 1 < len && content[i + 1] == '\n') {
+                    ++i; // skip \n in \r\n
+                }
+                currentRecord.append(currentField);
+                currentField.clear();
+                records.append(currentRecord);
+                currentRecord.clear();
+            } else {
+                currentField += ch;
+            }
         }
     }
 
-    // Add the last field
-    if (fieldHasQuotes) {
-        if (field.startsWith('"') && field.endsWith('"')) {
-            field = field.mid(1, field.length() - 2);
-        }
+    if (!currentField.isEmpty() || !currentRecord.isEmpty()) {
+        currentRecord.append(currentField);
+        records.append(currentRecord);
     }
-    fields.append(field);
 
-    return fields;
+    return records;
 }
 
 bool CsvImport::import(const QString& csvPath, QVector<Track>& tracks)
@@ -62,20 +70,27 @@ bool CsvImport::import(const QString& csvPath, QVector<Track>& tracks)
         qWarning() << "Failed to open CSV file:" << csvPath;
         return false;
     }
-    
+
     QTextStream stream(&file);
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
     stream.setCodec("UTF-8");
-    
-    // Read header
-    if (stream.atEnd())
+#else
+    stream.setEncoding(QStringConverter::Utf8);
+#endif
+
+    QString content = stream.readAll();
+    file.close();
+
+    QVector<QStringList> records = parseCsvContent(content);
+    if (records.isEmpty())
         return false;
-    QString headerLine = stream.readLine();
-    QStringList headers = parseCsvLine(headerLine);
-    
+
+    QStringList headers = records.first();
+
     // Map header indices to field types
     QVector<int> artistIdx, albumIdx, titleIdx, trackNumIdx, discNumIdx, genreIdx,
                  yearIdx, commentIdx, composerIdx, groupingIdx, bpmIdx, filePathIdx;
-    
+
     for (int i = 0; i < headers.size(); ++i) {
         QString h = headers[i].toLower().trimmed();
         if (h == "artist" || h == "artist name")
@@ -103,33 +118,29 @@ bool CsvImport::import(const QString& csvPath, QVector<Track>& tracks)
         else if (h == "file" || h == "file path" || h == "path")
             filePathIdx.append(i);
     }
-    
+
     if (filePathIdx.isEmpty()) {
         qWarning() << "CSV missing file path column";
         return false;
     }
-    
-    // Read data rows
-    while (!stream.atEnd()) {
-        QString line = stream.readLine().trimmed();
-        if (line.isEmpty())
+
+    for (int r = 1; r < records.size(); ++r) {
+        const QStringList& fields = records[r];
+        if (fields.isEmpty() || (fields.size() == 1 && fields[0].trimmed().isEmpty()))
             continue;
 
-        QStringList fields = parseCsvLine(line);
         if (fields.size() != headers.size()) {
-            qWarning() << "CSV line" << (tracks.size() + 1) << "has" << fields.size()
-                      << "fields but expected" << headers.size() << ", skipping";
+            qWarning() << "CSV line" << (r + 1) << "has" << fields.size()
+                       << "fields but expected" << headers.size() << ", skipping";
             continue;
         }
 
-        // Use first file path column
         QString filePath = fields[filePathIdx.first()].trimmed();
         if (filePath.isEmpty()) {
-            qWarning() << "CSV line" << (tracks.size() + 1) << "has empty file path, skipping";
+            qWarning() << "CSV line" << (r + 1) << "has empty file path, skipping";
             continue;
         }
 
-        // Check if file exists
         if (!QFile::exists(filePath)) {
             qWarning() << "CSV file does not exist:" << filePath << ", skipping";
             continue;
@@ -140,7 +151,7 @@ bool CsvImport::import(const QString& csvPath, QVector<Track>& tracks)
             qWarning() << "Failed to load track:" << filePath << ", skipping";
             continue;
         }
-        
+
         // Apply metadata from CSV
         if (!artistIdx.isEmpty())
             track.setArtist(fields[artistIdx.first()].trimmed());
@@ -164,12 +175,11 @@ bool CsvImport::import(const QString& csvPath, QVector<Track>& tracks)
             track.setGrouping(fields[groupingIdx.first()].trimmed());
         if (!bpmIdx.isEmpty())
             track.setBpm(fields[bpmIdx.first()].toInt());
-        
+
         tracks.append(track);
     }
-    
-    file.close();
+
     return true;
 }
 
-}
+} // namespace metatag
