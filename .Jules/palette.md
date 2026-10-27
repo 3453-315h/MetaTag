@@ -1,0 +1,3 @@
+## 2025-02-18 - PySide6 Explicit Buddy and Accessible Name Pattern
+**Learning:** In PySide6, while `QFormLayout.addRow(label, widget)` handles buddy relationships automatically for accessibility, standard layouts like `QHBoxLayout` and `QVBoxLayout` do not. Furthermore, basic UI widgets like `QSlider` or `QLineEdit` may lack context to a screen reader even when positioned next to a `QLabel`.
+**Action:** When working outside `QFormLayout`, always explicitly instantiate the `QLabel`, set its buddy via `label.setBuddy(widget)`, include an ampersand (`&`) for a keyboard accelerator, and manually set `widget.setAccessibleName("...")` on inputs to ensure complete screen reader compatibility.
