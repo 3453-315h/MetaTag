@@ -1,0 +1,3 @@
+## 2026-10-28 - PySide6 QHBoxLayout Label Accessibility
+**Learning:** When adding text labels in layouts other than `QFormLayout` (e.g., `QHBoxLayout` or `QVBoxLayout`), creating the label via an inline instantiation (e.g., `layout.addWidget(QLabel('Text'))`) or failing to explicitly associate the label with an input field results in poor accessibility, as screen readers will not correctly announce the field, and keyboard accelerators cannot be configured.
+**Action:** When adding labels next to input fields using layout managers other than `QFormLayout`, explicitly instantiate the label, use an ampersand (`&`) to set up a keyboard accelerator, and manually call `.setBuddy(input_widget)` to ensure a keyboard and screen-reader accessible association is created.
