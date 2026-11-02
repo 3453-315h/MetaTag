@@ -368,9 +368,11 @@ class MainWindow(QMainWindow):
 
         # ── Search Bar ──────────────────────────────────────────────────────────
         search_layout = QHBoxLayout()
-        search_label = QLabel("Search:")
+        search_label = QLabel("&Search:")
         self._search_edit = QLineEdit()
         self._search_edit.setObjectName("searchBar")
+        self._search_edit.setAccessibleName("Search tracks")
+        search_label.setBuddy(self._search_edit)
         self._search_edit.setPlaceholderText("Filter tracks by artist, album, title...")
         self._search_edit.setClearButtonEnabled(True)
         search_layout.addWidget(search_label)
