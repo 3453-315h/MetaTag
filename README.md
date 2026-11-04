@@ -41,7 +41,7 @@
 ---
 
 ## 💻 Tech Stack
-- **Standard Suite (v1.3.1)**: Built with **Python >= 3.9** (CI verified on Python 3.12), **PySide6 (Qt 6)**, and the **Mutagen** metadata engine.
+- **Standard Suite (v1.4.0)**: Built with **Python >= 3.9** (CI verified on Python 3.12), **PySide6 (Qt 6)**, and the **Mutagen** metadata engine.
 - **Native Implementation**: The original C++/TagLib core is available for high-performance native requirements (see `src/`).
 
 ## 🛠️ Usage
@@ -56,6 +56,9 @@ MetaTag is provided as a standalone, portable application. Simply run the `MetaT
 
 ### Native Build (C++)
 Instructions for building the C++ core can be found in [docs/native_build.md](docs/native_build.md).
+
+### Documentation & Audits
+Historical architecture reviews and clean-sweep audit findings are archived in [docs/review/](docs/review/).
 
 ---
 

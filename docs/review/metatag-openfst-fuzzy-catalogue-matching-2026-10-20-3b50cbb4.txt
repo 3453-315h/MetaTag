@@ -1,0 +1,50 @@
+METATAG - fuzzy catalogue matching with OpenFst
+2026-10-20
+
+Source: https://github.com/google-research/openfst @ c6f49f1 (2026-10-19)
+Source-only review: nothing installed or run against MetaTag.
+
+THE FIT (strongest concrete use found in the review):
+Compile the known artist/title catalogue into an FST, then fuzzy-match
+incoming tags against it by composing with an edit-distance transducer.
+Costs for insertions, deletions and substitutions are explicit weights you
+set, and shortest-path with n-best returns ranked match candidates instead
+of a single guess. This is the classic, textbook WFST application.
+
+VERIFIED MECHANICS (line refs at the reviewed HEAD):
+- Arc = exactly ilabel, olabel, weight, nextstate (openfst/lib/arc.h:55-58).
+  Weight type is a template parameter; tropical (min, +) is the natural
+  semiring for lowest-cost matching.
+- Composition is configurable: ComposeFst<Arc, Matcher,
+  SequenceComposeFilter> (openfst/lib/compose.h:61-62). The lazy/delayed
+  ComposeFst wrapper can avoid materialising unreachable states, unlike the
+  eager Compose() - but composed results can still grow badly, so this is
+  not a guarantee of tractability.
+- N-best and pruning are first-class: ShortestPathOptions with nshortest,
+  unique, delta, weight_threshold (openfst/lib/shortest-path.h:47-73).
+
+PRACTICAL:
+- C++17, builds with Bazel or CMake 3.22+ - fits MetaTag's native C++ side.
+- Python bindings exist (pywrapfst) but the CMake Python extension is OFF by
+  default (CMakeLists.txt:79) - build it explicitly or install pywrapfst
+  separately if you want it on the Python side.
+- Actively maintained: recent commits are robustness hardening (state/arc
+  caps, leak fixes).
+
+WATCH:
+- Composition and determinization can blow up (determinization is worst-case
+  exponential); state/arc counts are capped by the 32-bit StateId width.
+  Compact/Const FST representations are the memory-mitigation path.
+- A transducer is not automatically deterministic - determinize explicitly
+  where you need it, and not every transducer can be determinized.
+
+DO NOT BOLT ON:
+- Where exact lookup or simple string-similarity scoring already suffices,
+  stay with that. OpenFst earns its place when you need weighted
+  alternatives, several composed stages, and auditable costs - not as a
+  fancier string compare.
+
+OPERATIONAL RECOMMENDATION:
+Test any new matching pipeline on copies of the music collection, not the
+originals - a fuzzy tagger that writes wrong tags at scale is expensive to
+undo.
