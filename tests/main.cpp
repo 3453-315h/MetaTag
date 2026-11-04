@@ -1,10 +1,10 @@
-#include <QApplication>
+#include <QCoreApplication>
 #include <QtTest>
 #include "test_track.h"
 
 int main(int argc, char *argv[])
 {
-    QApplication app(argc, argv);
+    QCoreApplication app(argc, argv);
 
     int status = 0;
     auto runTest = [&status](QObject* test) {

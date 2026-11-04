@@ -27,6 +27,9 @@ if (MSVC)
 endif()
 
 add_test(NAME metatag-tests COMMAND metatag-tests)
+set_tests_properties(metatag-tests PROPERTIES
+    ENVIRONMENT "PATH=$<TARGET_FILE_DIR:metatag-tests>\;$ENV{PATH}"
+)
 
 if (WIN32 AND CMAKE_VERSION VERSION_GREATER_EQUAL "3.21")
     add_custom_command(TARGET metatag-tests POST_BUILD
