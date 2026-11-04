@@ -40,6 +40,23 @@ jobs:
         $vcpkgBin = "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin"
         $testDir = (Resolve-Path "build\tests\Release").Path
         $env:PATH = "$qtBin;$vcpkgBin;$testDir;$env:PATH"
-        & "$testDir\metatag-tests.exe"
+        $output = & "$testDir\metatag-tests.exe" 2>&1
+        Write-Host "Direct run output: $output"
+        Write-Host ("Direct run exit code: {0} (0x{0:X})" -f $LASTEXITCODE)
+        if ($LASTEXITCODE -ne 0) {
+            Get-ChildItem -Path $testDir -Filter *.dll | ForEach-Object {
+                $dllBytes = [System.IO.File]::ReadAllBytes($_.FullName)
+                $dllAscii = [System.Text.Encoding]::ASCII.GetString($dllBytes)
+                $subDlls = [regex]::Matches($dllAscii, '[a-zA-Z0-9_\-\.]+\.dll', 'IgnoreCase') | ForEach-Object { $_.Value } | Select-Object -Unique
+                Write-Host "Dependencies for $($_.Name):"
+                foreach ($d in $subDlls) {
+                    $found = ($env:PATH -split ';') | ForEach-Object { Join-Path $_ $d } | Where-Object { Test-Path $_ } | Select-Object -First 1
+                    if (-not $found) {
+                        Write-Host "  MISSING: $d"
+                    }
+                }
+            }
+            Get-EventLog -LogName Application -Newest 5 -ErrorAction SilentlyContinue | Format-List
+        }
         ctest --test-dir build -C Release --output-on-failure --no-tests=error
       shell: pwsh
