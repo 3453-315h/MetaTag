@@ -14,19 +14,29 @@ bool FileUtils::safeMove(const QString& src, const QString& dst)
         return false;
 
     std::error_code ec;
+#if defined(_WIN32)
+    std::filesystem::path srcPath(src.toStdU16String());
+    std::filesystem::path dstPath(dst.toStdU16String());
+#else
     std::filesystem::path srcPath(src.toStdString());
     std::filesystem::path dstPath(dst.toStdString());
+#endif
 
     if (!std::filesystem::exists(srcPath, ec) || ec)
         return false;
 
-    if (std::filesystem::equivalent(srcPath, dstPath, ec) && !ec)
-        return true;
+    ec.clear();
+    if (std::filesystem::exists(dstPath, ec) && !ec) {
+        if (std::filesystem::equivalent(srcPath, dstPath, ec) && !ec)
+            return true;
+    }
+    ec.clear();
 
     if (dstPath.has_parent_path()) {
         std::filesystem::create_directories(dstPath.parent_path(), ec);
         if (ec) return false;
     }
+    ec.clear();
 
     std::filesystem::rename(srcPath, dstPath, ec);
     if (!ec)
@@ -48,19 +58,29 @@ bool FileUtils::safeCopy(const QString& src, const QString& dst)
         return false;
 
     std::error_code ec;
+#if defined(_WIN32)
+    std::filesystem::path srcPath(src.toStdU16String());
+    std::filesystem::path dstPath(dst.toStdU16String());
+#else
     std::filesystem::path srcPath(src.toStdString());
     std::filesystem::path dstPath(dst.toStdString());
+#endif
 
     if (!std::filesystem::exists(srcPath, ec) || ec)
         return false;
 
-    if (std::filesystem::equivalent(srcPath, dstPath, ec) && !ec)
-        return true;
+    ec.clear();
+    if (std::filesystem::exists(dstPath, ec) && !ec) {
+        if (std::filesystem::equivalent(srcPath, dstPath, ec) && !ec)
+            return true;
+    }
+    ec.clear();
 
     if (dstPath.has_parent_path()) {
         std::filesystem::create_directories(dstPath.parent_path(), ec);
         if (ec) return false;
     }
+    ec.clear();
 
     std::filesystem::copy_file(srcPath, dstPath, std::filesystem::copy_options::overwrite_existing, ec);
     return !ec;

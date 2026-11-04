@@ -19,6 +19,13 @@ target_include_directories(metatag-tests
         ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
+if (MSVC)
+    set_target_properties(metatag-tests PROPERTIES
+        WIN32_EXECUTABLE FALSE
+        LINK_FLAGS "/SUBSYSTEM:CONSOLE"
+    )
+endif()
+
 add_test(NAME metatag-tests COMMAND metatag-tests)
 
 if (WIN32 AND CMAKE_VERSION VERSION_GREATER_EQUAL "3.21")
