@@ -5,7 +5,6 @@
 int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
-    app.setAttribute(Qt::AA_Use96Dpi, true);
 
     int status = 0;
     auto runTest = [&status](QObject* test) {

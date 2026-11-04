@@ -35,9 +35,11 @@ jobs:
       run: cmake --build build --config Release
 
     - name: Test
+      env:
+        QT_QPA_PLATFORM: offscreen
       run: |
         $qtBin = "$env:Qt6_DIR\bin"
         $vcpkgBin = "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin"
         $env:PATH = "$qtBin;$vcpkgBin;$env:PATH"
-        ctest --test-dir build -C Release --output-on-failure --no-tests=error
+        ctest --test-dir build -C Release --output-on-failure --no-tests=error --verbose
       shell: pwsh
