@@ -43,6 +43,10 @@ jobs:
         $output = & "$testDir\metatag-tests.exe" 2>&1
         Write-Host "Direct run output: $output"
         Write-Host ("Direct run exit code: {0} (0x{0:X})" -f $LASTEXITCODE)
+        if (Test-Path "test_results.txt") {
+            Write-Host "--- test_results.txt ---"
+            Get-Content "test_results.txt"
+        }
         if ($LASTEXITCODE -ne 0) {
             Get-ChildItem -Path $testDir -Filter *.dll | ForEach-Object {
                 $dllBytes = [System.IO.File]::ReadAllBytes($_.FullName)
