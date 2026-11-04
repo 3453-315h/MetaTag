@@ -4,12 +4,16 @@ Tests load, tag editing, saving, and reloading across real audio containers:
 MP3, FLAC, Ogg Vorbis, M4A, and WAV.
 """
 
+import shutil
 import subprocess
 import pytest
 from pathlib import Path
 from PIL import Image
 
 from metatag.core.track import Track
+
+if not shutil.which("ffmpeg"):
+    pytest.skip("ffmpeg executable not found in PATH", allow_module_level=True)
 
 
 def _make_audio(path: Path, codec: str) -> None:
