@@ -90,11 +90,26 @@ bool FileUtils::safeDelete(const QString& path)
 {
     if (path.isEmpty())
         return false;
-    
+
+    std::error_code ec;
+#if defined(_WIN32)
+    std::filesystem::path p(path.toStdU16String());
+#else
+    std::filesystem::path p(path.toStdString());
+#endif
+
+    if (!std::filesystem::exists(p, ec) || ec)
+        return true; // nothing to delete
+
+    ec.clear();
+    std::filesystem::remove(p, ec);
+    if (!ec)
+        return true;
+
+    // Fallback to QFile::remove
     QFile file(path);
     if (!file.exists())
-        return true; // nothing to delete
-    
+        return true;
     return file.remove();
 }
 

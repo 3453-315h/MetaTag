@@ -89,11 +89,13 @@ void TestTrack::testFileUtils()
     QVERIFY(metatag::FileUtils::safeDelete("/nonexistent/file.txt"));
     
     // Test with temporary files
-    QTemporaryFile tempFile(m_tempDir.path() + "/test_XXXXXX.txt");
-    QVERIFY(tempFile.open());
-    QString tempPath = tempFile.fileName();
-    tempFile.write("test");
-    tempFile.close();
+    QString tempPath = m_tempDir.path() + "/test_file.txt";
+    {
+        QFile tempFile(tempPath);
+        QVERIFY(tempFile.open(QIODevice::WriteOnly));
+        tempFile.write("test");
+        tempFile.close();
+    }
     
     QVERIFY(QFile::exists(tempPath));
 
