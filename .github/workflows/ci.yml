@@ -17,7 +17,7 @@ jobs:
       uses: jurplel/install-qt-action@v3
       with:
         version: '6.7.3'
-        cache: true
+        cache: false
 
     - name: Install TagLib via vcpkg
       run: |
