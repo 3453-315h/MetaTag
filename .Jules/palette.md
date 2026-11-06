@@ -1,0 +1,3 @@
+## 2024-05-24 - Accessibility on Layouts
+**Learning:** PySide6/Qt automatically establishes buddy relationships for labels added to `QFormLayout.addRow(label, input)`. However, when using other layouts like `QHBoxLayout` or `QVBoxLayout`, standard UI elements like `QLineEdit` might have empty accessible names and lack screen reader associations.
+**Action:** When manually managing layouts like `QHBoxLayout`, always instantiate the label separately, explicitly call `label.setBuddy(input)` to link them, provide an ampersand (`&`) in the label text for keyboard accelerators, and use `.setAccessibleName()` on standard widgets for robust screen reader support.
