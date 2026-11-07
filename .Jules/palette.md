@@ -1,0 +1,3 @@
+## 2024-05-24 - Qt Forms vs Manual Layouts A11y
+**Learning:** In PySide6, QFormLayout automatically establishes buddy relationships between labels and their inputs, providing screen reader access and keyboard navigation. However, when placing elements manually into QHBoxLayout or QVBoxLayout (like the main Search bar), these a11y connections must be explicitly coded using `QLabel.setBuddy(QWidget)` and adding `&` to the label string for Alt-key accelerators.
+**Action:** Always check manual layouts (QHBoxLayout/QVBoxLayout) for missing buddy relationships, and use `setBuddy()` and `&` to replicate the accessible behavior automatically provided by QFormLayout.
