@@ -1,0 +1,3 @@
+## 2024-11-09 - Accessible QSliders and Buddy Relationships
+**Learning:** In PySide6, standard UI elements like QSlider default to having an empty accessibleName. Explicitly setting `.setAccessibleName()` is necessary for proper screen reader compatibility. Additionally, avoid inline anonymous labels (e.g., `layout.addWidget(QLabel('Text'))`) as they prevent setting `.setBuddy()` relationships; instantiate them as variables instead.
+**Action:** When adding or reviewing QSlider elements, always ensure they have an explicit `setAccessibleName()`. When adding labels next to input widgets, always assign them to a variable and use `.setBuddy()` instead of declaring them anonymously inline.
