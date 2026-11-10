@@ -1,0 +1,3 @@
+## 2025-02-28 - Avoid Anonymous Labels in PySide6 for Better Accessibility
+**Learning:** In PySide6, creating anonymous inline labels (e.g., `layout.addWidget(QLabel('Text'))`) prevents establishing a "buddy" relationship (`setBuddy()`) with the adjacent input widget. Additionally, standard UI elements like `QSlider` default to having an empty accessible name, making them unhelpful for screen readers.
+**Action:** Always instantiate labels as named variables to allow calling `.setBuddy(widget)` and include keyboard accelerators using an ampersand (e.g., `&Vol:`). Explicitly call `.setAccessibleName()` on interactive elements like sliders and buttons to ensure screen reader compatibility.
