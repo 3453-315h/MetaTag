@@ -38,14 +38,18 @@ class RegexDialog(QDialog):
         layout = QVBoxLayout(self)
 
         # Pattern
-        layout.addWidget(QLabel("Find (regular expression):"))
+        pattern_label = QLabel("&Find (regular expression):")
+        layout.addWidget(pattern_label)
         self._pattern_edit = QLineEdit()
         self._pattern_edit.setPlaceholderText(r"\d{4}")
+        pattern_label.setBuddy(self._pattern_edit)
         layout.addWidget(self._pattern_edit)
 
-        layout.addWidget(QLabel("Replace with:"))
+        replacement_label = QLabel("&Replace with:")
+        layout.addWidget(replacement_label)
         self._replacement_edit = QLineEdit()
         self._replacement_edit.setPlaceholderText("YYYY")
+        replacement_label.setBuddy(self._replacement_edit)
         layout.addWidget(self._replacement_edit)
 
         # Options
